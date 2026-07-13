@@ -38,6 +38,13 @@
       "Name": "Partner Discount"
     },
     {
+      "Amount": 15,
+      "ConditionKey": "apply_shipping",
+      "Description": "Flat rate standard shipping fee",
+      "Type": "FlatAdjustment",
+      "Name": "Shipping \u0026 Handling Surcharge"
+    },
+    {
       "Factor": 1.08,
       "ConditionKey": "apply_federal_tax",
       "Description": "Federal standard sales tax of 8%",

@@ -45,14 +45,23 @@ int main() {
         "Applied 5% seasonal holiday discount."
     ));
 
+    // Rule 5: Shipping Fee Surcharge (flat $15)
+    blueprint->AddRule(std::make_shared<FlatAdjustmentRule>(
+        "Shipping Surcharge",
+        15.0,
+        "apply_shipping",
+        "Applied flat rate standard shipping fee."
+    ));
+
     // 2. Set up context scenario A: Regular order, small quantity
     {
-        std::cout << "--- SCENARIO A: Regular Customer, Qty 5 ---\n";
+        std::cout << "--- SCENARIO A: Regular Customer, Qty 5, Shipping Surcharge ---\n";
         PricingContext context;
         context.Set("base_price", 150.0);
         context.Set("quantity", 5.0);
         context.Set("is_vip", false);
         context.Set("is_holiday", false);
+        context.Set("apply_shipping", true);
 
         PriceResult result = blueprint->Calculate(context);
         result.Print();
@@ -61,12 +70,13 @@ int main() {
 
     // 3. Set up context scenario B: VIP Customer, Bulk order (120 items) during Holiday Season
     {
-        std::cout << "--- SCENARIO B: VIP Customer, Qty 120, Holiday Promotion ---\n";
+        std::cout << "--- SCENARIO B: VIP Customer, Qty 120, Holiday Promotion, Free Shipping ---\n";
         PricingContext context;
         context.Set("base_price", 150.0);
         context.Set("quantity", 120.0);
         context.Set("is_vip", true);
         context.Set("is_holiday", true);
+        context.Set("apply_shipping", false);
 
         PriceResult result = blueprint->Calculate(context);
         result.Print();

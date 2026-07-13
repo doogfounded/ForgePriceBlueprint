@@ -8,6 +8,7 @@ namespace Forge
     // C# representation of a pricing rule
     [JsonDerivedType(typeof(BasePriceRuleDto))]
     [JsonDerivedType(typeof(PercentageAdjustmentRuleDto))]
+    [JsonDerivedType(typeof(FlatAdjustmentRuleDto))]
     [JsonDerivedType(typeof(TieredPricingRuleDto))]
     public abstract class PricingRuleDto
     {
@@ -44,6 +45,21 @@ namespace Forge
             : base("PercentageAdjustment", name)
         {
             Factor = factor;
+            ConditionKey = conditionKey;
+            Description = description;
+        }
+    }
+
+    public class FlatAdjustmentRuleDto : PricingRuleDto
+    {
+        public double Amount { get; set; }
+        public string ConditionKey { get; set; }
+        public string Description { get; set; }
+
+        public FlatAdjustmentRuleDto(string name, double amount, string conditionKey, string description) 
+            : base("FlatAdjustment", name)
+        {
+            Amount = amount;
             ConditionKey = conditionKey;
             Description = description;
         }
@@ -101,6 +117,12 @@ namespace Forge
             return this;
         }
 
+        public BlueprintBuilder AddFlatAdjustment(string ruleName, double amount, string conditionKey, string description)
+        {
+            _blueprint.Rules.Add(new FlatAdjustmentRuleDto(ruleName, amount, conditionKey, description));
+            return this;
+        }
+
         public BlueprintBuilder AddVolumeTiers(string ruleName, string quantityKey, params (double minQty, double discountPct)[] tiers)
         {
             var rule = new TieredPricingRuleDto(ruleName, quantityKey);
@@ -136,6 +158,7 @@ namespace Forge
                     (500, 0.25)   // 25% off at 500 units
                 )
                 .AddPercentageAdjustment("Partner Discount", 0.90, "is_partner", "Partner Channel 10% discount")
+                .AddFlatAdjustment("Shipping & Handling Surcharge", 15.0, "apply_shipping", "Flat rate standard shipping fee")
                 .AddPercentageAdjustment("Federal Tax Surcharge", 1.08, "apply_federal_tax", "Federal standard sales tax of 8%")
                 .Build();
 

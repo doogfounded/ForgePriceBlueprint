@@ -138,6 +138,33 @@ namespace Pricing {
         }
     };
 
+    // Rule: Apply flat adjustment (addition/subtraction) under a condition
+    class FlatAdjustmentRule : public PricingRule {
+    private:
+        double amount; // e.g., 15.0 for standard shipping, -10.0 for coupon
+        std::string conditionKey; // Boolean context variable key required to activate the rule
+        std::string desc;
+
+    public:
+        FlatAdjustmentRule(std::string name, double amount, std::string conditionKey, std::string desc)
+            : PricingRule(std::move(name)), amount(amount), conditionKey(std::move(conditionKey)), desc(std::move(desc)) {}
+
+        void Execute(const PricingContext& context, double& currentPrice, std::vector<AuditRecord>& auditTrail) const override {
+            bool conditionActive = context.Get<bool>(conditionKey).value_or(false);
+            if (conditionActive) {
+                double originalPrice = currentPrice;
+                currentPrice += amount;
+                auditTrail.push_back({
+                    name,
+                    desc,
+                    originalPrice,
+                    currentPrice,
+                    amount
+                });
+            }
+        }
+    };
+
     // Rule: Tiered pricing discount based on quantity
     class TieredPricingRule : public PricingRule {
     public:
