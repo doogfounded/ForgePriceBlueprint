@@ -168,6 +168,43 @@ namespace Pricing {
         }
     };
 
+    // Rule: Apply floor and/or ceiling limits to the price
+    class PriceCapRule : public PricingRule {
+    private:
+        std::optional<double> minPrice;
+        std::optional<double> maxPrice;
+
+    public:
+        PriceCapRule(std::string name, std::optional<double> minPrice = std::nullopt, std::optional<double> maxPrice = std::nullopt)
+            : PricingRule(std::move(name)), minPrice(minPrice), maxPrice(maxPrice) {}
+
+        void Execute(const PricingContext& context, double& currentPrice, std::vector<AuditRecord>& auditTrail) const override {
+            double originalPrice = currentPrice;
+            double adjustedPrice = currentPrice;
+
+            if (minPrice.has_value() && adjustedPrice < minPrice.value()) {
+                adjustedPrice = minPrice.value();
+            }
+            if (maxPrice.has_value() && adjustedPrice > maxPrice.value()) {
+                adjustedPrice = maxPrice.value();
+            }
+
+            if (adjustedPrice != originalPrice) {
+                currentPrice = adjustedPrice;
+                std::string desc = "Price capped (limits: Min " + 
+                                   (minPrice.has_value() ? std::to_string(minPrice.value()) : "None") + ", Max " +
+                                   (maxPrice.has_value() ? std::to_string(maxPrice.value()) : "None") + ").";
+                auditTrail.push_back({
+                    name,
+                    desc,
+                    originalPrice,
+                    currentPrice,
+                    currentPrice - originalPrice
+                });
+            }
+        }
+    };
+
     // Rule: Tiered pricing discount based on quantity
     class TieredPricingRule : public PricingRule {
     public:
@@ -270,6 +307,17 @@ namespace Pricing {
                     std::string conditionKey = ruleJson.value("ConditionKey", "");
                     std::string description = ruleJson.value("Description", "");
                     blueprint->AddRule(std::make_shared<FlatAdjustmentRule>(name, amount, conditionKey, description));
+                }
+                else if (type == "PriceCap") {
+                    std::optional<double> minPrice;
+                    std::optional<double> maxPrice;
+                    if (ruleJson.contains("MinPrice") && !ruleJson["MinPrice"].is_null()) {
+                        minPrice = ruleJson.value("MinPrice", 0.0);
+                    }
+                    if (ruleJson.contains("MaxPrice") && !ruleJson["MaxPrice"].is_null()) {
+                        maxPrice = ruleJson.value("MaxPrice", 0.0);
+                    }
+                    blueprint->AddRule(std::make_shared<PriceCapRule>(name, minPrice, maxPrice));
                 }
                 else if (type == "TieredPricing") {
                     std::string quantityKey = ruleJson.value("QuantityKey", "");

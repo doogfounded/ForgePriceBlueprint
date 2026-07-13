@@ -50,6 +50,11 @@
       "Description": "Federal standard sales tax of 8%",
       "Type": "PercentageAdjustment",
       "Name": "Federal Tax Surcharge"
+    },
+    {
+      "MinPrice": 130,
+      "Type": "PriceCap",
+      "Name": "Contract Price Floor Cap"
     }
   ]
 }

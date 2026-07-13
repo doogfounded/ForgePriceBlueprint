@@ -9,6 +9,7 @@ namespace Forge
     [JsonDerivedType(typeof(BasePriceRuleDto))]
     [JsonDerivedType(typeof(PercentageAdjustmentRuleDto))]
     [JsonDerivedType(typeof(FlatAdjustmentRuleDto))]
+    [JsonDerivedType(typeof(PriceCapRuleDto))]
     [JsonDerivedType(typeof(TieredPricingRuleDto))]
     public abstract class PricingRuleDto
     {
@@ -62,6 +63,19 @@ namespace Forge
             Amount = amount;
             ConditionKey = conditionKey;
             Description = description;
+        }
+    }
+
+    public class PriceCapRuleDto : PricingRuleDto
+    {
+        public double? MinPrice { get; set; }
+        public double? MaxPrice { get; set; }
+
+        public PriceCapRuleDto(string name, double? minPrice = null, double? maxPrice = null) 
+            : base("PriceCap", name)
+        {
+            MinPrice = minPrice;
+            MaxPrice = maxPrice;
         }
     }
 
@@ -123,6 +137,12 @@ namespace Forge
             return this;
         }
 
+        public BlueprintBuilder AddPriceCap(string ruleName, double? minPrice = null, double? maxPrice = null)
+        {
+            _blueprint.Rules.Add(new PriceCapRuleDto(ruleName, minPrice, maxPrice));
+            return this;
+        }
+
         public BlueprintBuilder AddVolumeTiers(string ruleName, string quantityKey, params (double minQty, double discountPct)[] tiers)
         {
             var rule = new TieredPricingRuleDto(ruleName, quantityKey);
@@ -160,6 +180,7 @@ namespace Forge
                 .AddPercentageAdjustment("Partner Discount", 0.90, "is_partner", "Partner Channel 10% discount")
                 .AddFlatAdjustment("Shipping & Handling Surcharge", 15.0, "apply_shipping", "Flat rate standard shipping fee")
                 .AddPercentageAdjustment("Federal Tax Surcharge", 1.08, "apply_federal_tax", "Federal standard sales tax of 8%")
+                .AddPriceCap("Contract Price Floor Cap", minPrice: 130.0)
                 .Build();
 
             // Configure JSON options for serialization
