@@ -8,6 +8,9 @@
 #include <iomanip>
 #include <optional>
 #include <cmath>
+#include <fstream>
+#include <stdexcept>
+#include <nlohmann/json.hpp>
 
 namespace Pricing {
 
@@ -235,6 +238,55 @@ namespace Pricing {
         }
 
         const std::string& GetName() const { return blueprintName; }
+
+        static std::shared_ptr<PriceBlueprint> LoadFromFile(const std::string& filePath) {
+            std::ifstream file(filePath);
+            if (!file.is_open()) {
+                throw std::runtime_error("Could not open blueprint file: " + filePath);
+            }
+            nlohmann::json j;
+            file >> j;
+
+            std::string blueprintName = j.value("BlueprintName", "Unnamed Blueprint");
+            auto blueprint = std::make_shared<PriceBlueprint>(blueprintName);
+
+            for (const auto& ruleJson : j["Rules"]) {
+                std::string type = ruleJson.value("Type", "");
+                std::string name = ruleJson.value("Name", "");
+
+                if (type == "BasePrice") {
+                    double defaultPrice = ruleJson.value("DefaultPrice", 0.0);
+                    std::string contextKey = ruleJson.value("ContextKey", "base_price");
+                    blueprint->AddRule(std::make_shared<BasePriceRule>(name, defaultPrice, contextKey));
+                }
+                else if (type == "PercentageAdjustment") {
+                    double factor = ruleJson.value("Factor", 1.0);
+                    std::string conditionKey = ruleJson.value("ConditionKey", "");
+                    std::string description = ruleJson.value("Description", "");
+                    blueprint->AddRule(std::make_shared<PercentageAdjustmentRule>(name, factor, conditionKey, description));
+                }
+                else if (type == "FlatAdjustment") {
+                    double amount = ruleJson.value("Amount", 0.0);
+                    std::string conditionKey = ruleJson.value("ConditionKey", "");
+                    std::string description = ruleJson.value("Description", "");
+                    blueprint->AddRule(std::make_shared<FlatAdjustmentRule>(name, amount, conditionKey, description));
+                }
+                else if (type == "TieredPricing") {
+                    std::string quantityKey = ruleJson.value("QuantityKey", "");
+                    std::vector<TieredPricingRule::Tier> tiers;
+                    if (ruleJson.contains("Tiers")) {
+                        for (const auto& tierJson : ruleJson["Tiers"]) {
+                            double minQuantity = tierJson.value("MinQuantity", 0.0);
+                            double discountPercentage = tierJson.value("DiscountPercentage", 0.0);
+                            tiers.push_back({ minQuantity, discountPercentage });
+                        }
+                    }
+                    blueprint->AddRule(std::make_shared<TieredPricingRule>(name, quantityKey, tiers));
+                }
+            }
+
+            return blueprint;
+        }
     };
 
 } // namespace Pricing
