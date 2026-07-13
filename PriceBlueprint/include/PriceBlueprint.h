@@ -7,6 +7,7 @@
 #include <iostream>
 #include <iomanip>
 #include <optional>
+#include <cmath>
 
 namespace Pricing {
 
@@ -167,8 +168,8 @@ namespace Pricing {
                 double originalPrice = currentPrice;
                 currentPrice *= (1.0 - applicableDiscount);
                 
-                std::string desc = "Applied volume discount of " + std::to_string(static_cast<int>(applicableDiscount * 100)) + 
-                                   "% for quantity of " + std::to_string(static_cast<int>(quantity)) + ".";
+                std::string desc = "Applied volume discount of " + std::to_string(static_cast<int>(std::round(applicableDiscount * 100))) + 
+                                   "% for quantity of " + std::to_string(static_cast<int>(std::round(quantity))) + ".";
                 auditTrail.push_back({
                     name,
                     desc,

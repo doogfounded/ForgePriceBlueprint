@@ -1,0 +1,48 @@
+{
+  "BlueprintName": "Enterprise Custom Contract",
+  "Rules": [
+    {
+      "DefaultPrice": 250,
+      "ContextKey": "base_price",
+      "Type": "BasePrice",
+      "Name": "Base Configuration Rate"
+    },
+    {
+      "QuantityKey": "quantity",
+      "Tiers": [
+        {
+          "MinQuantity": 10,
+          "DiscountPercentage": 0.05
+        },
+        {
+          "MinQuantity": 50,
+          "DiscountPercentage": 0.1
+        },
+        {
+          "MinQuantity": 100,
+          "DiscountPercentage": 0.15
+        },
+        {
+          "MinQuantity": 500,
+          "DiscountPercentage": 0.25
+        }
+      ],
+      "Type": "TieredPricing",
+      "Name": "Volume License Tiers"
+    },
+    {
+      "Factor": 0.9,
+      "ConditionKey": "is_partner",
+      "Description": "Partner Channel 10% discount",
+      "Type": "PercentageAdjustment",
+      "Name": "Partner Discount"
+    },
+    {
+      "Factor": 1.08,
+      "ConditionKey": "apply_federal_tax",
+      "Description": "Federal standard sales tax of 8%",
+      "Type": "PercentageAdjustment",
+      "Name": "Federal Tax Surcharge"
+    }
+  ]
+}

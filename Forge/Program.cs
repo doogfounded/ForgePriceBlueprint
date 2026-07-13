@@ -152,10 +152,21 @@ namespace Forge
             Console.WriteLine(jsonOutput);
 
             Console.WriteLine("\nWriting specification blueprint to disk...");
-            string path = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "enterprise_blueprint.json");
+            string solutionRoot = GetSolutionRoot();
+            string path = Path.Combine(solutionRoot, "enterprise_blueprint.json");
             File.WriteAllText(path, jsonOutput);
             Console.WriteLine($"Successfully saved to: {path}\n");
             Console.WriteLine("Forge successfully assembled the final pricing blueprint.");
+        }
+
+        private static string GetSolutionRoot()
+        {
+            var dir = new DirectoryInfo(AppDomain.CurrentDomain.BaseDirectory);
+            while (dir != null && !File.Exists(Path.Combine(dir.FullName, "ForgePriceBlueprint.slnx")))
+            {
+                dir = dir.Parent;
+            }
+            return dir?.FullName ?? AppDomain.CurrentDomain.BaseDirectory;
         }
     }
 }
