@@ -1,0 +1,212 @@
+#pragma once
+#include <string>
+#include <vector>
+#include <unordered_map>
+#include <variant>
+#include <memory>
+#include <iostream>
+#include <iomanip>
+#include <optional>
+
+namespace Pricing {
+
+    // A variant to represent context variable values (numbers, booleans, or strings)
+    using Value = std::variant<double, bool, std::string>;
+
+    // The evaluation context containing inputs (e.g., customer tier, quantity, holiday season)
+    class PricingContext {
+    private:
+        std::unordered_map<std::string, Value> variables;
+
+    public:
+        void Set(const std::string& key, Value val) {
+            variables[key] = val;
+        }
+
+        template<typename T>
+        std::optional<T> Get(const std::string& key) const {
+            auto it = variables.find(key);
+            if (it != variables.end() && std::holds_alternative<T>(it->second)) {
+                return std::get<T>(it->second);
+            }
+            return std::nullopt;
+        }
+
+        bool Has(const std::string& key) const {
+            return variables.find(key) != variables.end();
+        }
+    };
+
+    // Audit record detailing modifications made by a rule
+    struct AuditRecord {
+        std::string ruleName;
+        std::string description;
+        double inputPrice;
+        double outputPrice;
+        double adjustment;
+    };
+
+    // The output result of the pricing operating system calculation
+    struct PriceResult {
+        double basePrice = 0.0;
+        double finalPrice = 0.0;
+        std::vector<AuditRecord> auditTrail;
+
+        void Print() const {
+            std::cout << "==========================================\n";
+            std::cout << "Pricing Execution Report\n";
+            std::cout << "==========================================\n";
+            std::cout << std::fixed << std::setprecision(2);
+            std::cout << "Initial Base Price: $" << basePrice << "\n\n";
+            std::cout << "Audit Trail:\n";
+            for (size_t i = 0; i < auditTrail.size(); ++i) {
+                const auto& record = auditTrail[i];
+                std::cout << "  " << i + 1 << ". [" << record.ruleName << "] " << record.description << "\n";
+                std::cout << "     Price: $" << record.inputPrice << " -> $" << record.outputPrice 
+                          << " (Adjustment: " << (record.adjustment >= 0 ? "+" : "") << record.adjustment << ")\n";
+            }
+            std::cout << "------------------------------------------\n";
+            std::cout << "Final Price: $" << finalPrice << "\n";
+            std::cout << "==========================================\n";
+        }
+    };
+
+    // Abstract base class representing a single pricing rule or calculation step
+    class PricingRule {
+    protected:
+        std::string name;
+
+    public:
+        explicit PricingRule(std::string ruleName) : name(std::move(ruleName)) {}
+        virtual ~PricingRule() = default;
+
+        const std::string& GetName() const { return name; }
+
+        // Evaluates the rule, modifying the price and adding an audit trail entry
+        virtual void Execute(const PricingContext& context, double& currentPrice, std::vector<AuditRecord>& auditTrail) const = 0;
+    };
+
+    // Rule: Sets the initial base price from a context variable or constant
+    class BasePriceRule : public PricingRule {
+    private:
+        double defaultPrice;
+        std::string contextKey;
+
+    public:
+        BasePriceRule(std::string name, double defaultPrice, std::string contextKey = "base_price")
+            : PricingRule(std::move(name)), defaultPrice(defaultPrice), contextKey(std::move(contextKey)) {}
+
+        void Execute(const PricingContext& context, double& currentPrice, std::vector<AuditRecord>& auditTrail) const override {
+            double startPrice = context.Get<double>(contextKey).value_or(defaultPrice);
+            double original = currentPrice;
+            currentPrice = startPrice;
+            auditTrail.push_back({
+                name,
+                "Initialized base price from context/default.",
+                original,
+                currentPrice,
+                currentPrice - original
+            });
+        }
+    };
+
+    // Rule: Apply percentage discount/markup under a condition
+    class PercentageAdjustmentRule : public PricingRule {
+    private:
+        double factor; // e.g., 0.90 for 10% off, 1.05 for 5% markup
+        std::string conditionKey; // Boolean context variable key required to activate the rule
+        std::string desc;
+
+    public:
+        PercentageAdjustmentRule(std::string name, double factor, std::string conditionKey, std::string desc)
+            : PricingRule(std::move(name)), factor(factor), conditionKey(std::move(conditionKey)), desc(std::move(desc)) {}
+
+        void Execute(const PricingContext& context, double& currentPrice, std::vector<AuditRecord>& auditTrail) const override {
+            bool conditionActive = context.Get<bool>(conditionKey).value_or(false);
+            if (conditionActive) {
+                double originalPrice = currentPrice;
+                currentPrice *= factor;
+                auditTrail.push_back({
+                    name,
+                    desc,
+                    originalPrice,
+                    currentPrice,
+                    currentPrice - originalPrice
+                });
+            }
+        }
+    };
+
+    // Rule: Tiered pricing discount based on quantity
+    class TieredPricingRule : public PricingRule {
+    public:
+        struct Tier {
+            double minQuantity;
+            double discountPercentage; // e.g., 0.10 for 10% off
+        };
+
+    private:
+        std::string quantityKey;
+        std::vector<Tier> tiers; // Ordered by minQuantity ascending
+
+    public:
+        TieredPricingRule(std::string name, std::string quantityKey, std::vector<Tier> pricingTiers)
+            : PricingRule(std::move(name)), quantityKey(std::move(quantityKey)), tiers(std::move(pricingTiers)) {}
+
+        void Execute(const PricingContext& context, double& currentPrice, std::vector<AuditRecord>& auditTrail) const override {
+            double quantity = context.Get<double>(quantityKey).value_or(0.0);
+            double applicableDiscount = 0.0;
+            
+            for (const auto& tier : tiers) {
+                if (quantity >= tier.minQuantity) {
+                    applicableDiscount = tier.discountPercentage;
+                }
+            }
+
+            if (applicableDiscount > 0.0) {
+                double originalPrice = currentPrice;
+                currentPrice *= (1.0 - applicableDiscount);
+                
+                std::string desc = "Applied volume discount of " + std::to_string(static_cast<int>(applicableDiscount * 100)) + 
+                                   "% for quantity of " + std::to_string(static_cast<int>(quantity)) + ".";
+                auditTrail.push_back({
+                    name,
+                    desc,
+                    originalPrice,
+                    currentPrice,
+                    currentPrice - originalPrice
+                });
+            }
+        }
+    };
+
+    // The blueprint/specification template representing a structured pipeline of rules
+    class PriceBlueprint {
+    private:
+        std::string blueprintName;
+        std::vector<std::shared_ptr<PricingRule>> rules;
+
+    public:
+        explicit PriceBlueprint(std::string name) : blueprintName(std::move(name)) {}
+
+        void AddRule(std::shared_ptr<PricingRule> rule) {
+            rules.push_back(std::move(rule));
+        }
+
+        PriceResult Calculate(const PricingContext& context) const {
+            PriceResult result;
+            double currentPrice = 0.0;
+            
+            for (const auto& rule : rules) {
+                rule->Execute(context, currentPrice, result.auditTrail);
+            }
+            
+            result.basePrice = result.auditTrail.empty() ? 0.0 : result.auditTrail.front().outputPrice;
+            result.finalPrice = currentPrice;
+            return result;
+        }
+
+        const std::string& GetName() const { return blueprintName; }
+    };
+
+} // namespace Pricing

@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Forge/Forge.csproj" />
+  <Project Path="PriceBlueprint/PriceBlueprint.vcxproj" />
+</Solution>
