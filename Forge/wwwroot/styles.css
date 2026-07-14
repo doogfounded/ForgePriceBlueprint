@@ -952,3 +952,8 @@ body {
         overflow-y: visible;
     }
 }
+
+/* Rule Card Collapsed States */
+.rule-card.collapsed .rule-header {
+    margin-bottom: 0;
+}

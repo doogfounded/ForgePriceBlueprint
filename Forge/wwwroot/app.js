@@ -6,6 +6,9 @@ let blueprintState = {
     Rules: []
 };
 
+// Keep track of collapsed rule indices in the designer view
+let collapsedRules = new Set();
+
 // Simulator context variables values
 let contextValues = {
     base_price: 250,
@@ -246,9 +249,26 @@ function renderVisualDesigner() {
         titleArea.appendChild(nameInput);
         titleArea.appendChild(typeBadge);
         
-        // Controls (Up, Down, Delete)
+        // Controls (Collapse, Up, Down, Delete)
         const controls = document.createElement('div');
         controls.className = 'rule-controls';
+
+        const isCollapsed = collapsedRules.has(idx);
+
+        const btnCollapse = document.createElement('button');
+        btnCollapse.className = 'btn-ctrl btn-collapse';
+        btnCollapse.innerHTML = isCollapsed 
+            ? `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 5 15 12 9 19"/></svg>` // chevron right
+            : `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>`; // chevron down
+        btnCollapse.title = isCollapsed ? "Expand Rule" : "Collapse Rule";
+        btnCollapse.addEventListener('click', () => {
+            if (collapsedRules.has(idx)) {
+                collapsedRules.delete(idx);
+            } else {
+                collapsedRules.add(idx);
+            }
+            renderVisualDesigner();
+        });
         
         const btnUp = document.createElement('button');
         btnUp.className = 'btn-ctrl';
@@ -270,6 +290,7 @@ function renderVisualDesigner() {
         btnDel.title = "Delete Rule";
         btnDel.addEventListener('click', () => deleteRule(idx));
         
+        controls.appendChild(btnCollapse);
         controls.appendChild(btnUp);
         controls.appendChild(btnDown);
         controls.appendChild(btnDel);
@@ -281,6 +302,10 @@ function renderVisualDesigner() {
         // Body fields depending on type
         const body = document.createElement('div');
         body.className = 'rule-body';
+        if (isCollapsed) {
+            card.classList.add('collapsed');
+            body.classList.add('hidden');
+        }
         
         if (rule.Type === 'BasePrice') {
             body.innerHTML = `
@@ -799,7 +824,7 @@ function onJSONEditorInput() {
         }
         
         blueprintState = parsed;
-        
+        collapsedRules.clear();
         renderVisualDesigner();
         
         // Generate YAML & APIs
@@ -833,6 +858,7 @@ function onYAMLEditorInput() {
         }
         
         blueprintState = parsed;
+        collapsedRules.clear();
         renderVisualDesigner();
         
         // Generate JSON & APIs
@@ -874,6 +900,7 @@ function loadBlueprintFromDisk() {
         .then(data => {
             if (data.BlueprintName && Array.isArray(data.Rules)) {
                 blueprintState = data;
+                collapsedRules.clear();
                 onVisualChange();
                 renderContextInputs();
                 runSimulator();

@@ -325,7 +325,7 @@ namespace Forge
 
             try
             {
-                string rawPath = request.Url.AbsolutePath;
+                string rawPath = request.Url?.AbsolutePath ?? "/index.html";
                 if (rawPath == "/" || string.IsNullOrEmpty(rawPath))
                 {
                     rawPath = "/index.html";
