@@ -845,6 +845,229 @@ function runSimulator() {
     } else {
         statSavingsPct.className = 'stat-val';
     }
+    drawPricingCurve();
+}
+
+function simulatePriceForQty(qty, qKey) {
+    const originalVal = contextValues[qKey];
+    contextValues[qKey] = qty;
+    
+    let currentPrice = 0.0;
+    blueprintState.Rules.forEach(rule => {
+        if (rule.Type === 'BasePrice') {
+            const key = rule.ContextKey || "base_price";
+            currentPrice = (contextValues[key] !== undefined) ? contextValues[key] : rule.DefaultPrice;
+        }
+        else if (rule.Type === 'PercentageAdjustment') {
+            if (evaluateCondition(rule.ConditionKey, contextValues)) {
+                currentPrice *= rule.Factor;
+            }
+        }
+        else if (rule.Type === 'FlatAdjustment') {
+            if (evaluateCondition(rule.ConditionKey, contextValues)) {
+                currentPrice += rule.Amount;
+            }
+        }
+        else if (rule.Type === 'PriceCap') {
+            if (rule.MinPrice != null && currentPrice < rule.MinPrice) {
+                currentPrice = rule.MinPrice;
+            }
+            if (rule.MaxPrice != null && currentPrice > rule.MaxPrice) {
+                currentPrice = rule.MaxPrice;
+            }
+        }
+        else if (rule.Type === 'TieredPricing') {
+            const ruleQKey = rule.QuantityKey || "quantity";
+            const ruleQty = contextValues[ruleQKey] || 0.0;
+            let discount = 0.0;
+            const sortedTiers = [...(rule.Tiers || [])].sort((a, b) => a.MinQuantity - b.MinQuantity);
+            for (const tier of sortedTiers) {
+                if (ruleQty >= tier.MinQuantity) {
+                    discount = tier.DiscountPercentage;
+                }
+            }
+            if (discount > 0.0) {
+                currentPrice *= (1.0 - discount);
+            }
+        }
+    });
+    
+    contextValues[qKey] = originalVal;
+    return currentPrice;
+}
+
+function drawPricingCurve() {
+    const canvas = document.getElementById('pricing-curve-canvas');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    
+    // Resize buffer if CSS dimensions changed
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+    
+    const width = rect.width;
+    const height = rect.height;
+    ctx.clearRect(0, 0, width, height);
+
+    // 1. Identify active quantity key
+    let qKey = "quantity";
+    blueprintState.Rules.forEach(rule => {
+        if (rule.Type === 'TieredPricing' && rule.QuantityKey) {
+            qKey = rule.QuantityKey;
+        }
+    });
+
+    const currentQty = parseFloat(contextValues[qKey]) || 0;
+
+    // 2. Determine bounds
+    let maxTierQty = 100;
+    blueprintState.Rules.forEach(rule => {
+        if (rule.Type === 'TieredPricing' && rule.Tiers) {
+            rule.Tiers.forEach(t => {
+                if (t.MinQuantity > maxTierQty) maxTierQty = t.MinQuantity;
+            });
+        }
+    });
+    let maxQty = Math.max(maxTierQty * 1.5, currentQty * 1.2, 50);
+    maxQty = Math.ceil(maxQty / 10) * 10; // Round to nearest 10
+
+    // 3. Sample points
+    const stepCount = 60;
+    const dataPoints = [];
+    let maxPrice = 0.0;
+    for (let i = 0; i <= stepCount; i++) {
+        const q = (maxQty / stepCount) * i;
+        const p = simulatePriceForQty(q, qKey);
+        dataPoints.push({ q, p });
+        if (p > maxPrice) maxPrice = p;
+    }
+
+    if (maxPrice === 0) maxPrice = 100.0;
+    const yMax = maxPrice * 1.15; // 15% top margin
+
+    // 4. Coordinates helpers
+    const padLeft = 40;
+    const padRight = 15;
+    const padTop = 15;
+    const padBottom = 25;
+    const chartWidth = width - padLeft - padRight;
+    const chartHeight = height - padTop - padBottom;
+
+    function getX(q) {
+        return padLeft + (q / maxQty) * chartWidth;
+    }
+    function getY(p) {
+        return padTop + chartHeight - (p / yMax) * chartHeight;
+    }
+
+    // 5. Draw horizontal gridlines & Y labels
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+    ctx.lineWidth = 1;
+    ctx.fillStyle = '#6b7280';
+    ctx.font = '9px Outfit, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+
+    const gridLines = 3;
+    for (let i = 0; i <= gridLines; i++) {
+        const ratio = i / gridLines;
+        const val = yMax * ratio;
+        const y = getY(val);
+
+        ctx.beginPath();
+        ctx.moveTo(padLeft, y);
+        ctx.lineTo(width - padRight, y);
+        ctx.stroke();
+
+        ctx.fillText(`$${val.toFixed(0)}`, padLeft - 6, y);
+    }
+
+    // 6. Draw vertical ticks & X labels
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const xTicks = 4;
+    for (let i = 0; i <= xTicks; i++) {
+        const ratio = i / xTicks;
+        const q = maxQty * ratio;
+        const x = getX(q);
+
+        ctx.beginPath();
+        ctx.moveTo(x, padTop + chartHeight);
+        ctx.lineTo(x, padTop + chartHeight + 4);
+        ctx.stroke();
+
+        ctx.fillText(q.toFixed(0), x, padTop + chartHeight + 6);
+    }
+
+    // X-Axis Variable indicator
+    ctx.fillStyle = '#9ca3af';
+    ctx.textAlign = 'right';
+    ctx.fillText(`${qKey} →`, width - padRight, padTop + chartHeight + 6);
+
+    // 7. Plot Pricing Curve Line
+    ctx.beginPath();
+    ctx.moveTo(getX(dataPoints[0].q), getY(dataPoints[0].p));
+    for (let i = 1; i < dataPoints.length; i++) {
+        ctx.lineTo(getX(dataPoints[i].q), getY(dataPoints[i].p));
+    }
+    ctx.strokeStyle = '#6366f1'; // Indigo base line
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // 8. Draw Min Price Floor dashed line if exists
+    blueprintState.Rules.forEach(rule => {
+        if (rule.Type === 'PriceCap' && rule.MinPrice != null) {
+            const floorY = getY(rule.MinPrice);
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(244, 63, 94, 0.4)';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([4, 4]);
+            ctx.moveTo(padLeft, floorY);
+            ctx.lineTo(width - padRight, floorY);
+            ctx.stroke();
+            ctx.setLineDash([]); // Reset dashed state
+
+            ctx.fillStyle = 'rgba(244, 63, 94, 0.8)';
+            ctx.font = '8px Outfit, sans-serif';
+            ctx.textAlign = 'left';
+            ctx.fillText(`Floor Cap: $${rule.MinPrice.toFixed(0)}`, padLeft + 6, floorY - 6);
+        }
+    });
+
+    // 9. Draw current scenario pointer dot
+    const activePrice = parseFloat(finalPriceDisplay.textContent) || 0.0;
+    const dotX = getX(currentQty);
+    const dotY = getY(activePrice);
+
+    // Vertical helper line
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.06)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(dotX, padTop);
+    ctx.lineTo(dotX, padTop + chartHeight);
+    ctx.stroke();
+
+    // Outer glow circle
+    ctx.beginPath();
+    ctx.arc(dotX, dotY, 6, 0, 2 * Math.PI);
+    ctx.fillStyle = '#06b6d4';
+    ctx.fill();
+
+    // Inner white core
+    ctx.beginPath();
+    ctx.arc(dotX, dotY, 2.5, 0, 2 * Math.PI);
+    ctx.fillStyle = 'white';
+    ctx.fill();
+
+    // Active value label box
+    ctx.fillStyle = 'white';
+    ctx.font = 'bold 9px Outfit, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`$${activePrice.toFixed(2)}`, dotX, dotY - 10);
 }
 
 function renderTrace(steps) {
