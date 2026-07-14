@@ -3,7 +3,7 @@
 #include <memory>
 #include <fstream>
 
-int main() {
+int main(int argc, char* argv[]) {
     using namespace Pricing;
 
     std::cout << "Starting PriceBlueprint Core Engine...\n\n";
@@ -11,22 +11,30 @@ int main() {
     // 1. Load the blueprint dynamically from JSON
     std::shared_ptr<PriceBlueprint> blueprint;
     try {
-        std::string paths[] = {
-            "ForgePriceBlueprint/enterprise_blueprint.json",
-            "../enterprise_blueprint.json",
-            "../../enterprise_blueprint.json",
-            "enterprise_blueprint.json"
-        };
         std::string foundPath = "";
-        for (const auto& path : paths) {
-            std::ifstream f(path);
-            if (f.good()) {
-                foundPath = path;
-                break;
+        if (argc > 1) {
+            foundPath = argv[1];
+            std::ifstream f(foundPath);
+            if (!f.good()) {
+                throw std::runtime_error("Specified blueprint file not found: " + foundPath);
             }
-        }
-        if (foundPath.empty()) {
-            throw std::runtime_error("Could not find enterprise_blueprint.json in any search path.");
+        } else {
+            std::string paths[] = {
+                "ForgePriceBlueprint/enterprise_blueprint.json",
+                "../enterprise_blueprint.json",
+                "../../enterprise_blueprint.json",
+                "enterprise_blueprint.json"
+            };
+            for (const auto& path : paths) {
+                std::ifstream f(path);
+                if (f.good()) {
+                    foundPath = path;
+                    break;
+                }
+            }
+            if (foundPath.empty()) {
+                throw std::runtime_error("Could not find enterprise_blueprint.json in any search path.");
+            }
         }
         std::cout << "Loading blueprint from: " << foundPath << "\n\n";
         blueprint = PriceBlueprint::LoadFromFile(foundPath);
