@@ -957,3 +957,39 @@ body {
 .rule-card.collapsed .rule-header {
     margin-bottom: 0;
 }
+
+/* Designer Meta Presets styling */
+.meta-row {
+    display: flex;
+    gap: 1rem;
+}
+
+.meta-field {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.designer-meta select {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border-glass);
+    border-radius: 6px;
+    padding: 0.6rem;
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    font-size: 0.95rem;
+    transition: var(--transition-smooth);
+    cursor: pointer;
+}
+
+.designer-meta select:focus {
+    outline: none;
+    border-color: var(--border-glass-focus);
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
+.designer-meta select option {
+    background: #0f172a;
+    color: var(--text-primary);
+}

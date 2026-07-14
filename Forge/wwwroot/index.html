@@ -49,8 +49,21 @@
             </div>
             
             <div class="designer-meta glass-card">
-                <label for="blueprint-name">Blueprint Name</label>
-                <input type="text" id="blueprint-name" value="Enterprise Custom Contract" placeholder="Enter blueprint name...">
+                <div class="meta-row">
+                    <div class="meta-field">
+                        <label for="blueprint-name">Blueprint Name</label>
+                        <input type="text" id="blueprint-name" value="Enterprise Custom Contract" placeholder="Enter blueprint name...">
+                    </div>
+                    <div class="meta-field">
+                        <label for="preset-selector">Scenario Template</label>
+                        <select id="preset-selector">
+                            <option value="" disabled selected>Select a preset...</option>
+                            <option value="enterprise">Enterprise Contract</option>
+                            <option value="saas">SaaS Subscription</option>
+                            <option value="ecommerce">E-commerce Promo</option>
+                        </select>
+                    </div>
+                </div>
             </div>
 
             <div id="rules-container" class="rules-list">

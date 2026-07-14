@@ -17,6 +17,140 @@ let contextValues = {
     region: "EU"
 };
 
+// Preset Scenario Templates definitions
+const PRESET_SCENARIOS = {
+    enterprise: {
+        BlueprintName: "Enterprise Custom Contract",
+        Rules: [
+            {
+                Type: "BasePrice",
+                Name: "Base Configuration Rate",
+                DefaultPrice: 250.0,
+                ContextKey: "base_price"
+            },
+            {
+                Type: "TieredPricing",
+                Name: "Volume License Tiers",
+                QuantityKey: "quantity",
+                Tiers: [
+                    { MinQuantity: 10, DiscountPercentage: 0.05 },
+                    { MinQuantity: 50, DiscountPercentage: 0.10 },
+                    { MinQuantity: 100, DiscountPercentage: 0.15 },
+                    { MinQuantity: 500, DiscountPercentage: 0.25 }
+                ]
+            },
+            {
+                Type: "PercentageAdjustment",
+                Name: "Partner Discount",
+                Factor: 0.90,
+                ConditionKey: "is_partner",
+                Description: "Partner Channel 10% discount"
+            },
+            {
+                Type: "FlatAdjustment",
+                Name: "Shipping & Handling Surcharge",
+                Amount: 15.0,
+                ConditionKey: "quantity < 10",
+                Description: "Flat rate standard shipping fee for small orders"
+            },
+            {
+                Type: "PercentageAdjustment",
+                Name: "International Tax Surcharge",
+                Factor: 1.15,
+                ConditionKey: "region != US",
+                Description: "International regional sales tax of 15%"
+            },
+            {
+                Type: "PriceCap",
+                Name: "Contract Price Floor Cap",
+                MinPrice: 130.0,
+                MaxPrice: null
+            }
+        ]
+    },
+    saas: {
+        BlueprintName: "SaaS Tiered Subscription",
+        Rules: [
+            {
+                Type: "BasePrice",
+                Name: "SaaS Base Subscription",
+                DefaultPrice: 50.0,
+                ContextKey: "plan_base_price"
+            },
+            {
+                Type: "TieredPricing",
+                Name: "User Seats Tiered Pricing",
+                QuantityKey: "seats",
+                Tiers: [
+                    { MinQuantity: 5, DiscountPercentage: 0.05 },
+                    { MinQuantity: 10, DiscountPercentage: 0.10 },
+                    { MinQuantity: 25, DiscountPercentage: 0.20 },
+                    { MinQuantity: 100, DiscountPercentage: 0.35 }
+                ]
+            },
+            {
+                Type: "FlatAdjustment",
+                Name: "Dedicated Support Add-on",
+                Amount: 150.0,
+                ConditionKey: "is_enterprise",
+                Description: "Dedicated enterprise support engineer SLA surcharge"
+            },
+            {
+                Type: "PercentageAdjustment",
+                Name: "Annual Billing Discount",
+                Factor: 0.833,
+                ConditionKey: "billing_interval == annual",
+                Description: "Get 2 months free with annual subscription"
+            },
+            {
+                Type: "PriceCap",
+                Name: "Subscription Price Floor",
+                MinPrice: 30.0,
+                MaxPrice: null
+            }
+        ]
+    },
+    ecommerce: {
+        BlueprintName: "E-commerce Holiday Promo",
+        Rules: [
+            {
+                Type: "BasePrice",
+                Name: "Cart Checkout Price",
+                DefaultPrice: 100.0,
+                ContextKey: "cart_total"
+            },
+            {
+                Type: "PercentageAdjustment",
+                Name: "Holiday Coupon Promo",
+                Factor: 0.75,
+                ConditionKey: "coupon_code == HOLIDAY25",
+                Description: "Apply 25% Christmas coupon discount"
+            },
+            {
+                Type: "PercentageAdjustment",
+                Name: "VIP Customer Discount",
+                Factor: 0.95,
+                ConditionKey: "is_vip",
+                Description: "Additional 5% discount for loyalty members"
+            },
+            {
+                Type: "FlatAdjustment",
+                Name: "Free Shipping Discount",
+                Amount: -10.0,
+                ConditionKey: "cart_total >= 50",
+                Description: "Waive shipping charge for orders over $50"
+            },
+            {
+                Type: "FlatAdjustment",
+                Name: "Standard Shipping Surcharge",
+                Amount: 10.0,
+                ConditionKey: "cart_total < 50",
+                Description: "Add standard shipping and handling fee"
+            }
+        ]
+    }
+};
+
 // Default rule structures when adding a new one
 const DEFAULT_RULES = {
     BasePrice: () => ({
@@ -80,6 +214,7 @@ const cppOutput = document.getElementById('cpp-output');
 const btnSave = document.getElementById('btn-save');
 const toast = document.getElementById('toast');
 const btnResetContext = document.getElementById('btn-reset-context');
+const presetSelector = document.getElementById('preset-selector');
 
 // 3. Event Listeners Initialization
 function initEvents() {
@@ -105,6 +240,42 @@ function initEvents() {
     blueprintNameInput.addEventListener('input', () => {
         blueprintState.BlueprintName = blueprintNameInput.value;
         onVisualChange();
+    });
+
+    // Preset Scenario selection
+    presetSelector.addEventListener('change', () => {
+        const selected = presetSelector.value;
+        if (PRESET_SCENARIOS[selected]) {
+            blueprintState = JSON.parse(JSON.stringify(PRESET_SCENARIOS[selected]));
+            collapsedRules.clear();
+            
+            // Adjust context simulator inputs to match the preset variables naturally
+            if (selected === 'saas') {
+                contextValues = {
+                    plan_base_price: 50.0,
+                    seats: 25,
+                    is_enterprise: false,
+                    billing_interval: "annual"
+                };
+            } else if (selected === 'ecommerce') {
+                contextValues = {
+                    cart_total: 100.0,
+                    coupon_code: "HOLIDAY25",
+                    is_vip: true
+                };
+            } else {
+                contextValues = {
+                    base_price: 250,
+                    quantity: 120,
+                    is_partner: false,
+                    region: "EU"
+                };
+            }
+            
+            onVisualChange();
+            renderContextInputs();
+            runSimulator();
+        }
     });
 
     // Save Button
@@ -620,7 +791,7 @@ function runSimulator() {
                 step.outputPrice = currentPrice;
                 step.description = `Price capped at ${capDetails.join(' and ')}.`;
             } else {
-                step.description = `Price ($${currentPrice.toFixed(2)}) is within caps (Min: ${rule.MinPrice !== null ? '$'+rule.MinPrice.toFixed(2) : 'None'}, Max: ${rule.MaxPrice !== null ? '$'+rule.MaxPrice.toFixed(2) : 'None'}).`;
+                step.description = `Price ($${currentPrice.toFixed(2)}) is within caps (Min: ${rule.MinPrice != null ? '$'+rule.MinPrice.toFixed(2) : 'None'}, Max: ${rule.MaxPrice != null ? '$'+rule.MaxPrice.toFixed(2) : 'None'}).`;
             }
         }
         else if (rule.Type === 'TieredPricing') {
