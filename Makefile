@@ -7,9 +7,22 @@ all: run
 generate:
 	dotnet run --project Forge/Forge.csproj
 
+# Define include paths for vcpkg dependencies (e.g. nlohmann/json)
+VCPKG_ROOT ?= D:/Desktop/git-stuff/vcpkg
+VCPKG_INCLUDE ?= $(VCPKG_ROOT)/installed/x64-windows/include
+
+# Check if the path exists, otherwise fall back to WSL mount folder
+ifeq ($(wildcard $(VCPKG_INCLUDE)),)
+    VCPKG_INCLUDE = /mnt/d/Desktop/git-stuff/vcpkg/installed/x64-windows/include
+endif
+
+ifneq ($(wildcard $(VCPKG_INCLUDE)),)
+    VCPKG_FLAGS = -I$(VCPKG_INCLUDE)
+endif
+
 # Build the C++ runtime (requires g++ and nlohmann/json header available in the include path)
 build:
-	g++ -std=c++17 PriceBlueprint/src/main.cpp -IPriceBlueprint/include -o price_blueprint
+	g++ -std=c++17 PriceBlueprint/src/main.cpp -IPriceBlueprint/include $(VCPKG_FLAGS) -o price_blueprint
 
 # Generate then build then run
 run: generate build

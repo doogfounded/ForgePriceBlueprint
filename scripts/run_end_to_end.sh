@@ -25,7 +25,19 @@ dotnet run --project Forge/Forge.csproj
 echo "--> Building C++ runtime (PriceBlueprint)..."
 # If g++ is available, use it; otherwise inform the user
 if command -v g++ >/dev/null 2>&1; then
-  g++ -std=c++17 PriceBlueprint/src/main.cpp -IPriceBlueprint/include -o price_blueprint
+  # Auto-detect vcpkg include directory for nlohmann/json headers
+  VCPKG_INCLUDE="D:/Desktop/git-stuff/vcpkg/installed/x64-windows/include"
+  if [ ! -d "$VCPKG_INCLUDE" ]; then
+    VCPKG_INCLUDE="/mnt/d/Desktop/git-stuff/vcpkg/installed/x64-windows/include"
+  fi
+
+  VCPKG_FLAGS=""
+  if [ -d "$VCPKG_INCLUDE" ]; then
+    echo "    Found vcpkg includes at: $VCPKG_INCLUDE"
+    VCPKG_FLAGS="-I$VCPKG_INCLUDE"
+  fi
+
+  g++ -std=c++17 PriceBlueprint/src/main.cpp -IPriceBlueprint/include $VCPKG_FLAGS -o price_blueprint
 else
   echo "Skipping local g++ build. If you're on Windows, open ForgePriceBlueprint.slnx in Visual Studio and build the PriceBlueprint project."
 fi
