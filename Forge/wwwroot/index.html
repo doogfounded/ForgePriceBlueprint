@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forge Price Blueprint Studio</title>
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <!-- styles -->
+    <link rel="stylesheet" href="styles.css">
+    <!-- JS YAML parser -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
+</head>
+<body>
+    <header class="app-header">
+        <div class="header-brand">
+            <svg class="header-logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+            </svg>
+            <div>
+                <h1>Forge Price Blueprint Studio</h1>
+                <p class="subtitle">Visual pricing compiler & simulator</p>
+            </div>
+        </div>
+        <div class="header-actions">
+            <div id="connection-status" class="status-indicator connected">
+                <span class="status-dot"></span>
+                <span class="status-text">Connected to Local Engine</span>
+            </div>
+            <button id="btn-save" class="btn btn-primary" title="Save changes directly to enterprise_blueprint.json">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                    <polyline points="17 21 17 13 7 13 7 21"/>
+                    <polyline points="7 3 7 8 15 8"/>
+                </svg>
+                Save Blueprint
+            </button>
+        </div>
+    </header>
+
+    <main class="app-workspace">
+        <!-- COLUMN 1: Designer -->
+        <section class="workspace-column" id="designer-col">
+            <div class="column-header">
+                <h2>Visual Pipeline Designer</h2>
+                <span class="column-desc">Sequence of pricing rules in execution order</span>
+            </div>
+            
+            <div class="designer-meta glass-card">
+                <label for="blueprint-name">Blueprint Name</label>
+                <input type="text" id="blueprint-name" value="Enterprise Custom Contract" placeholder="Enter blueprint name...">
+            </div>
+
+            <div id="rules-container" class="rules-list">
+                <!-- Dynamic Rule Cards go here -->
+            </div>
+
+            <div class="add-rule-menu">
+                <button id="btn-add-rule-toggle" class="btn btn-secondary btn-full">
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="12" y1="5" x2="12" y2="19"/>
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    Add Pricing Rule
+                </button>
+                <div id="rule-type-dropdown" class="dropdown-menu hidden">
+                    <button class="dropdown-item" data-type="BasePrice">
+                        <strong>Base Price</strong>
+                        <span>Initialize base config rate</span>
+                    </button>
+                    <button class="dropdown-item" data-type="TieredPricing">
+                        <strong>Volume Tiers</strong>
+                        <span>Quantity-based discounts</span>
+                    </button>
+                    <button class="dropdown-item" data-type="PercentageAdjustment">
+                        <strong>Percentage Adjustment</strong>
+                        <span>Markup/Discount factor (e.g. 0.90 or 1.15)</span>
+                    </button>
+                    <button class="dropdown-item" data-type="FlatAdjustment">
+                        <strong>Flat Adjustment</strong>
+                        <span>Add/Subtract absolute amount (e.g. +15 or -10)</span>
+                    </button>
+                    <button class="dropdown-item" data-type="PriceCap">
+                        <strong>Price Floor/Ceiling Cap</strong>
+                        <span>Enforce minimum/maximum price limits</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- COLUMN 2: Simulator -->
+        <section class="workspace-column" id="simulator-col">
+            <div class="column-header">
+                <h2>Live Scenario Simulator</h2>
+                <span class="column-desc">Test calculations against the active blueprint</span>
+            </div>
+
+            <div class="glass-card simulator-inputs-panel">
+                <h3>Context Variables</h3>
+                <div id="context-inputs-container" class="context-grid">
+                    <!-- Dynamic inputs based on variables defined in the rules -->
+                </div>
+                <div class="context-actions">
+                    <button id="btn-reset-context" class="btn-text">
+                        Reset to Defaults
+                    </button>
+                </div>
+            </div>
+
+            <div class="glass-card calculator-output-card">
+                <div class="calc-main">
+                    <span class="calc-label">Final Price</span>
+                    <div class="calc-price-display">
+                        <span class="currency">$</span>
+                        <span id="final-price-value">0.00</span>
+                    </div>
+                </div>
+                <div class="calc-stats">
+                    <div class="stat-box">
+                        <span class="stat-lbl">Initial Base</span>
+                        <span class="stat-val" id="stat-initial-price">$0.00</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-lbl">Adjustments</span>
+                        <span class="stat-val" id="stat-total-adjustment">+$0.00</span>
+                    </div>
+                    <div class="stat-box">
+                        <span class="stat-lbl">Net Savings</span>
+                        <span class="stat-val discount-pct" id="stat-savings-pct">0%</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-card trace-panel">
+                <h3>Execution Trace Audit</h3>
+                <div id="trace-container" class="trace-list">
+                    <!-- Dynamic step-by-step audit run -->
+                </div>
+            </div>
+        </section>
+
+        <!-- COLUMN 3: Developer Hub -->
+        <section class="workspace-column" id="developer-col">
+            <div class="column-header">
+                <h2>Developer Hub</h2>
+                <span class="column-desc">Declarative formats and API builders</span>
+            </div>
+
+            <div class="tabs-container glass-card">
+                <div class="tabs-header">
+                    <button class="tab-btn active" data-tab="tab-json">JSON Spec</button>
+                    <button class="tab-btn" data-tab="tab-yaml">YAML Spec</button>
+                    <button class="tab-btn" data-tab="tab-csharp">C# Fluent API</button>
+                    <button class="tab-btn" data-tab="tab-cpp">C++ Setup</button>
+                </div>
+                
+                <div class="tabs-content">
+                    <!-- JSON Tab -->
+                    <div class="tab-pane active" id="tab-json">
+                        <div class="pane-action-bar">
+                            <span class="pane-info">Directly editable JSON schema</span>
+                            <button class="btn-copy" data-target="json-editor">Copy</button>
+                        </div>
+                        <textarea id="json-editor" spellcheck="false" class="code-editor"></textarea>
+                    </div>
+
+                    <!-- YAML Tab -->
+                    <div class="tab-pane" id="tab-yaml">
+                        <div class="pane-action-bar">
+                            <span class="pane-info">Directly editable YAML markup (cleaner for devs)</span>
+                            <button class="btn-copy" data-target="yaml-editor">Copy</button>
+                        </div>
+                        <textarea id="yaml-editor" spellcheck="false" class="code-editor"></textarea>
+                    </div>
+
+                    <!-- C# Tab -->
+                    <div class="tab-pane" id="tab-csharp">
+                        <div class="pane-action-bar">
+                            <span class="pane-info">Automatically generated C# Program builder code</span>
+                            <button class="btn-copy" data-target="csharp-output">Copy</button>
+                        </div>
+                        <pre id="csharp-output" class="code-preview language-csharp"></pre>
+                    </div>
+
+                    <!-- C++ Tab -->
+                    <div class="tab-pane" id="tab-cpp">
+                        <div class="pane-action-bar">
+                            <span class="pane-info">How to load and integrate in the C++ engine</span>
+                            <button class="btn-copy" data-target="cpp-output">Copy</button>
+                        </div>
+                        <pre id="cpp-output" class="code-preview language-cpp"></pre>
+                    </div>
+                </div>
+            </div>
+
+            <div id="validation-status" class="validation-bar valid">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" class="icon-valid">
+                    <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" class="icon-invalid hidden">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                <span id="validation-message">Specification synced & validated successfully.</span>
+            </div>
+        </section>
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast hidden">Saved successfully to disk!</div>
+
+    <script src="app.js"></script>
+</body>
+</html>

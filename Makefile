@@ -28,5 +28,8 @@ build:
 run: generate build
 	./price_blueprint
 
+web:
+	dotnet run --project Forge/Forge.csproj --web
+
 clean:
 	rm -f price_blueprint

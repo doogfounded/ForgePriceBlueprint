@@ -1,6 +1,6 @@
-# scripts/run_end_to_end.ps1
-# Helper to run the end-to-end flow on Windows using PowerShell.
-# Usage: .\scripts\run_end_to_end.ps1
+param(
+    [switch]$Web
+)
 
 $ErrorActionPreference = "Stop"
 
@@ -15,8 +15,15 @@ if (-not (Get-Command "dotnet" -ErrorAction SilentlyContinue)) {
 }
 
 # 2. Run C# generator
-Write-Host "`n--> Generating enterprise_blueprint.json via the Forge C# project..." -ForegroundColor Green
-dotnet run --project Forge/Forge.csproj
+if ($Web) {
+    Write-Host "`n--> Starting local Blueprint Studio web server..." -ForegroundColor Green
+    dotnet run --project Forge/Forge.csproj --web
+    Pop-Location
+    exit
+} else {
+    Write-Host "`n--> Generating enterprise_blueprint.json via the Forge C# project..." -ForegroundColor Green
+    dotnet run --project Forge/Forge.csproj
+}
 
 # 3. Locate compiler and build
 Write-Host "`n--> Building C++ runtime (PriceBlueprint)..." -ForegroundColor Green

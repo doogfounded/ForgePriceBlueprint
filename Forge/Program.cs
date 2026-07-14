@@ -2,6 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.IO;
+using System.Net;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Diagnostics;
 
 namespace Forge
 {
@@ -168,39 +174,257 @@ namespace Forge
             Console.WriteLine("   Forge: Pricing Operating System Assembler     ");
             Console.WriteLine("=================================================");
 
-            // Assemble a pricing blueprint using the Fluent Builder
-            var blueprint = new BlueprintBuilder("Enterprise Custom Contract")
-                .SetBasePrice("Base Configuration Rate", 250.0)
-                .AddVolumeTiers("Volume License Tiers", "quantity", 
-                    (10, 0.05),   // 5% off at 10 units
-                    (50, 0.10),   // 10% off at 50 units
-                    (100, 0.15),  // 15% off at 100 units
-                    (500, 0.25)   // 25% off at 500 units
-                )
-                .AddPercentageAdjustment("Partner Discount", 0.90, "is_partner", "Partner Channel 10% discount")
-                .AddFlatAdjustment("Shipping & Handling Surcharge", 15.0, "quantity < 10", "Flat rate standard shipping fee for small orders")
-                .AddPercentageAdjustment("International Tax Surcharge", 1.15, "region != US", "International regional sales tax of 15%")
-                .AddPriceCap("Contract Price Floor Cap", minPrice: 130.0)
-                .Build();
+            bool runWeb = false;
+            int port = 5000;
 
-            // Configure JSON options for serialization
-            var options = new JsonSerializerOptions
+            for (int i = 0; i < args.Length; i++)
             {
-                WriteIndented = true,
-                DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-            };
+                if (args[i] == "--web" || args[i] == "-w")
+                {
+                    runWeb = true;
+                }
+                else if ((args[i] == "--port" || args[i] == "-p") && i + 1 < args.Length)
+                {
+                    if (int.TryParse(args[i + 1], out int p))
+                    {
+                        port = p;
+                        i++;
+                    }
+                }
+            }
 
-            string jsonOutput = JsonSerializer.Serialize(blueprint, options);
-
-            Console.WriteLine("\nGenerated Blueprint JSON Specification:\n");
-            Console.WriteLine(jsonOutput);
-
-            Console.WriteLine("\nWriting specification blueprint to disk...");
             string solutionRoot = GetSolutionRoot();
-            string path = Path.Combine(solutionRoot, "enterprise_blueprint.json");
-            File.WriteAllText(path, jsonOutput);
-            Console.WriteLine($"Successfully saved to: {path}\n");
-            Console.WriteLine("Forge successfully assembled the final pricing blueprint.");
+
+            if (runWeb)
+            {
+                string wwwrootPath = Path.Combine(solutionRoot, "Forge", "wwwroot");
+                if (!Directory.Exists(wwwrootPath))
+                {
+                    wwwrootPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "wwwroot");
+                }
+                StartWebServer(wwwrootPath, solutionRoot, port);
+            }
+            else
+            {
+                // Assemble a pricing blueprint using the Fluent Builder
+                var blueprint = new BlueprintBuilder("Enterprise Custom Contract")
+                    .SetBasePrice("Base Configuration Rate", 250.0)
+                    .AddVolumeTiers("Volume License Tiers", "quantity", 
+                        (10, 0.05),   // 5% off at 10 units
+                        (50, 0.10),   // 10% off at 50 units
+                        (100, 0.15),  // 15% off at 100 units
+                        (500, 0.25)   // 25% off at 500 units
+                    )
+                    .AddPercentageAdjustment("Partner Discount", 0.90, "is_partner", "Partner Channel 10% discount")
+                    .AddFlatAdjustment("Shipping & Handling Surcharge", 15.0, "quantity < 10", "Flat rate standard shipping fee for small orders")
+                    .AddPercentageAdjustment("International Tax Surcharge", 1.15, "region != US", "International regional sales tax of 15%")
+                    .AddPriceCap("Contract Price Floor Cap", minPrice: 130.0)
+                    .Build();
+
+                // Configure JSON options for serialization
+                var options = new JsonSerializerOptions
+                {
+                    WriteIndented = true,
+                    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+                };
+
+                string jsonOutput = JsonSerializer.Serialize(blueprint, options);
+
+                Console.WriteLine("\nGenerated Blueprint JSON Specification:\n");
+                Console.WriteLine(jsonOutput);
+
+                Console.WriteLine("\nWriting specification blueprint to disk...");
+                string path = Path.Combine(solutionRoot, "enterprise_blueprint.json");
+                File.WriteAllText(path, jsonOutput);
+                Console.WriteLine($"Successfully saved to: {path}\n");
+                Console.WriteLine("Forge successfully assembled the final pricing blueprint.");
+            }
+        }
+
+        private static void StartWebServer(string wwwrootPath, string solutionRoot, int port)
+        {
+            string url = $"http://localhost:{port}/";
+            var listener = new HttpListener();
+            listener.Prefixes.Add(url);
+            
+            try
+            {
+                listener.Start();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: Failed to start web server on {url}.");
+                Console.WriteLine("Make sure the port is not in use, or run as administrator if needed.");
+                Console.WriteLine($"Details: {ex.Message}");
+                return;
+            }
+
+            Console.WriteLine($"\n--> Blueprint Studio server running on: {url}");
+            Console.WriteLine($"    Serving web files from: {wwwrootPath}");
+            Console.WriteLine($"    Reading/writing to: {Path.Combine(solutionRoot, "enterprise_blueprint.json")}\n");
+            Console.WriteLine("    Press [Enter] or Ctrl+C in this terminal to shut down the server.");
+
+            // Launch browser asynchronously
+            Task.Run(() =>
+            {
+                try
+                {
+                    Thread.Sleep(500);
+                    Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Warning: Could not open browser automatically: {ex.Message}");
+                }
+            });
+
+            var cts = new CancellationTokenSource();
+            var serverTask = Task.Run(() => HandleRequests(listener, wwwrootPath, solutionRoot, cts.Token));
+
+            Console.ReadLine();
+            Console.WriteLine("Shutting down Blueprint Studio server...");
+            cts.Cancel();
+            listener.Stop();
+            try { serverTask.Wait(); } catch { }
+            Console.WriteLine("Server stopped.");
+        }
+
+        private static async Task HandleRequests(HttpListener listener, string wwwrootPath, string solutionRoot, CancellationToken token)
+        {
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    var context = await listener.GetContextAsync();
+                    if (token.IsCancellationRequested) break;
+                    
+                    _ = Task.Run(() => ProcessRequest(context, wwwrootPath, solutionRoot));
+                }
+                catch (Exception)
+                {
+                    if (token.IsCancellationRequested) break;
+                }
+            }
+        }
+
+        private static void ProcessRequest(HttpListenerContext context, string wwwrootPath, string solutionRoot)
+        {
+            var request = context.Request;
+            var response = context.Response;
+            
+            response.Headers.Add("Access-Control-Allow-Origin", "*");
+            response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+            response.Headers.Add("Access-Control-Allow-Headers", "Content-Type");
+
+            if (request.HttpMethod == "OPTIONS")
+            {
+                response.StatusCode = (int)HttpStatusCode.OK;
+                response.Close();
+                return;
+            }
+
+            try
+            {
+                string rawPath = request.Url.AbsolutePath;
+                if (rawPath == "/" || string.IsNullOrEmpty(rawPath))
+                {
+                    rawPath = "/index.html";
+                }
+
+                if (rawPath.Equals("/api/blueprint", StringComparison.OrdinalIgnoreCase) && request.HttpMethod == "GET")
+                {
+                    string filePath = Path.Combine(solutionRoot, "enterprise_blueprint.json");
+                    if (File.Exists(filePath))
+                    {
+                        byte[] data = File.ReadAllBytes(filePath);
+                        response.ContentType = "application/json";
+                        response.ContentLength64 = data.Length;
+                        response.OutputStream.Write(data, 0, data.Length);
+                    }
+                    else
+                    {
+                        response.StatusCode = (int)HttpStatusCode.NotFound;
+                        byte[] error = Encoding.UTF8.GetBytes("{\"error\": \"Blueprint file not found on disk.\"}");
+                        response.ContentType = "application/json";
+                        response.ContentLength64 = error.Length;
+                        response.OutputStream.Write(error, 0, error.Length);
+                    }
+                    response.Close();
+                    return;
+                }
+
+                if (rawPath.Equals("/api/blueprint", StringComparison.OrdinalIgnoreCase) && request.HttpMethod == "POST")
+                {
+                    using (var reader = new StreamReader(request.InputStream, request.ContentEncoding ?? Encoding.UTF8))
+                    {
+                        string body = reader.ReadToEnd();
+                        try
+                        {
+                            using (var doc = JsonDocument.Parse(body))
+                            {
+                                string filePath = Path.Combine(solutionRoot, "enterprise_blueprint.json");
+                                File.WriteAllText(filePath, body);
+                                
+                                response.StatusCode = (int)HttpStatusCode.OK;
+                                byte[] success = Encoding.UTF8.GetBytes("{\"status\": \"success\", \"message\": \"Blueprint saved successfully.\"}");
+                                response.ContentType = "application/json";
+                                response.ContentLength64 = success.Length;
+                                response.OutputStream.Write(success, 0, success.Length);
+                            }
+                        }
+                        catch (JsonException ex)
+                        {
+                            response.StatusCode = (int)HttpStatusCode.BadRequest;
+                            byte[] error = Encoding.UTF8.GetBytes($"{{\"error\": \"Invalid JSON blueprint: {ex.Message}\"}}");
+                            response.ContentType = "application/json";
+                            response.ContentLength64 = error.Length;
+                            response.OutputStream.Write(error, 0, error.Length);
+                        }
+                    }
+                    response.Close();
+                    return;
+                }
+
+                string localFilePath = Path.Combine(wwwrootPath, rawPath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+                if (File.Exists(localFilePath))
+                {
+                    string ext = Path.GetExtension(localFilePath).ToLower();
+                    switch (ext)
+                    {
+                        case ".html": response.ContentType = "text/html"; break;
+                        case ".css": response.ContentType = "text/css"; break;
+                        case ".js": response.ContentType = "application/javascript"; break;
+                        case ".json": response.ContentType = "application/json"; break;
+                        case ".png": response.ContentType = "image/png"; break;
+                        case ".jpg": case ".jpeg": response.ContentType = "image/jpeg"; break;
+                        default: response.ContentType = "application/octet-stream"; break;
+                    }
+
+                    byte[] fileData = File.ReadAllBytes(localFilePath);
+                    response.ContentLength64 = fileData.Length;
+                    response.OutputStream.Write(fileData, 0, fileData.Length);
+                }
+                else
+                {
+                    response.StatusCode = (int)HttpStatusCode.NotFound;
+                    byte[] notFoundData = Encoding.UTF8.GetBytes("<h1>404 Not Found</h1><p>Requested file could not be found.</p>");
+                    response.ContentType = "text/html";
+                    response.ContentLength64 = notFoundData.Length;
+                    response.OutputStream.Write(notFoundData, 0, notFoundData.Length);
+                }
+            }
+            catch (Exception ex)
+            {
+                response.StatusCode = (int)HttpStatusCode.InternalServerError;
+                byte[] errorData = Encoding.UTF8.GetBytes($"<h1>500 Internal Server Error</h1><p>{ex.Message}</p>");
+                response.ContentType = "text/html";
+                response.ContentLength64 = errorData.Length;
+                response.OutputStream.Write(errorData, 0, errorData.Length);
+            }
+            finally
+            {
+                response.Close();
+            }
         }
 
         private static string GetSolutionRoot()
