@@ -41,6 +41,74 @@ namespace Pricing {
         }
     };
 
+    // Evaluates simple expressions (e.g. "quantity >= 50", "region == US") on the PricingContext
+    inline bool EvaluateCondition(const PricingContext& context, const std::string& conditionExpr) {
+        if (conditionExpr.empty()) {
+            return true;
+        }
+
+        // Search for operators
+        std::string op = "";
+        size_t opPos = std::string::npos;
+        std::string operators[] = { "==", "!=", ">=", "<=", ">", "<" };
+        for (const auto& possibleOp : operators) {
+            opPos = conditionExpr.find(possibleOp);
+            if (opPos != std::string::npos) {
+                op = possibleOp;
+                break;
+            }
+        }
+
+        // Backwards compatibility: if no operator is present, treat the expression as a simple boolean key lookup
+        if (op.empty()) {
+            return context.Get<bool>(conditionExpr).value_or(false);
+        }
+
+        std::string key = conditionExpr.substr(0, opPos);
+        std::string valStr = conditionExpr.substr(opPos + op.length());
+
+        // Trim helper
+        auto trim = [](std::string& s) {
+            s.erase(0, s.find_first_not_of(" \t\r\n"));
+            s.erase(s.find_last_not_of(" \t\r\n") + 1);
+        };
+        trim(key);
+        trim(valStr);
+
+        if (!context.Has(key)) {
+            return false;
+        }
+
+        // Type matching comparison
+        if (context.Get<double>(key).has_value()) {
+            double left = context.Get<double>(key).value();
+            double right = std::stod(valStr);
+            if (op == "==") return left == right;
+            if (op == "!=") return left != right;
+            if (op == ">=") return left >= right;
+            if (op == "<=") return left <= right;
+            if (op == ">") return left > right;
+            if (op == "<") return left < right;
+        }
+        else if (context.Get<bool>(key).has_value()) {
+            bool left = context.Get<bool>(key).value();
+            bool right = (valStr == "true" || valStr == "1");
+            if (op == "==") return left == right;
+            if (op == "!=") return left != right;
+        }
+        else if (context.Get<std::string>(key).has_value()) {
+            std::string left = context.Get<std::string>(key).value();
+            std::string right = valStr;
+            if (right.front() == '"' && right.back() == '"') {
+                right = right.substr(1, right.length() - 2);
+            }
+            if (op == "==") return left == right;
+            if (op == "!=") return left != right;
+        }
+
+        return false;
+    }
+
     // Audit record detailing modifications made by a rule
     struct AuditRecord {
         std::string ruleName;
@@ -126,7 +194,7 @@ namespace Pricing {
             : PricingRule(std::move(name)), factor(factor), conditionKey(std::move(conditionKey)), desc(std::move(desc)) {}
 
         void Execute(const PricingContext& context, double& currentPrice, std::vector<AuditRecord>& auditTrail) const override {
-            bool conditionActive = context.Get<bool>(conditionKey).value_or(false);
+            bool conditionActive = EvaluateCondition(context, conditionKey);
             if (conditionActive) {
                 double originalPrice = currentPrice;
                 currentPrice *= factor;
@@ -153,7 +221,7 @@ namespace Pricing {
             : PricingRule(std::move(name)), amount(amount), conditionKey(std::move(conditionKey)), desc(std::move(desc)) {}
 
         void Execute(const PricingContext& context, double& currentPrice, std::vector<AuditRecord>& auditTrail) const override {
-            bool conditionActive = context.Get<bool>(conditionKey).value_or(false);
+            bool conditionActive = EvaluateCondition(context, conditionKey);
             if (conditionActive) {
                 double originalPrice = currentPrice;
                 currentPrice += amount;

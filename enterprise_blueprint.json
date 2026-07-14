@@ -39,17 +39,17 @@
     },
     {
       "Amount": 15,
-      "ConditionKey": "apply_shipping",
-      "Description": "Flat rate standard shipping fee",
+      "ConditionKey": "quantity \u003C 10",
+      "Description": "Flat rate standard shipping fee for small orders",
       "Type": "FlatAdjustment",
       "Name": "Shipping \u0026 Handling Surcharge"
     },
     {
-      "Factor": 1.08,
-      "ConditionKey": "apply_federal_tax",
-      "Description": "Federal standard sales tax of 8%",
+      "Factor": 1.15,
+      "ConditionKey": "region != US",
+      "Description": "International regional sales tax of 15%",
       "Type": "PercentageAdjustment",
-      "Name": "Federal Tax Surcharge"
+      "Name": "International Tax Surcharge"
     },
     {
       "MinPrice": 130,
