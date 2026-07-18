@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Concurrent;
+using System.Buffers;
+using System.IO.Compression;
 using System.Collections.Generic;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -200,6 +203,9 @@ namespace Forge
 
     public class Program
     {
+        private static readonly ConcurrentDictionary<string, byte[]> _staticFileCache = new();
+        private const long MaxCacheableFileSize = 32 * 1024; // 32 KB
+
         public static void Main(string[] args)
         {
             Console.WriteLine("=================================================");
@@ -369,10 +375,39 @@ namespace Forge
                     if (File.Exists(filePath))
                     {
                         response.ContentType = "application/json";
-                        response.SendChunked = true;
-                        using (var fileStream = File.OpenRead(filePath))
+
+                        // Compress if client supports it
+                        string acceptEncoding = request.Headers["Accept-Encoding"] ?? "";
+                        Stream responseStream = response.OutputStream;
+                        bool isCompressed = false;
+
+                        if (acceptEncoding.Contains("gzip", StringComparison.OrdinalIgnoreCase))
                         {
-                            await fileStream.CopyToAsync(response.OutputStream, 8192);
+                            response.Headers.Add("Content-Encoding", "gzip");
+                            responseStream = new GZipStream(response.OutputStream, CompressionMode.Compress, leaveOpen: true);
+                            isCompressed = true;
+                        }
+                        else if (acceptEncoding.Contains("deflate", StringComparison.OrdinalIgnoreCase))
+                        {
+                            response.Headers.Add("Content-Encoding", "deflate");
+                            responseStream = new DeflateStream(response.OutputStream, CompressionMode.Compress, leaveOpen: true);
+                            isCompressed = true;
+                        }
+
+                        try
+                        {
+                            response.SendChunked = true;
+                            using (var fileStream = File.OpenRead(filePath))
+                            {
+                                await StreamWithBufferPoolAsync(fileStream, responseStream);
+                            }
+                        }
+                        finally
+                        {
+                            if (isCompressed)
+                            {
+                                await responseStream.DisposeAsync();
+                            }
                         }
                     }
                     else
@@ -423,21 +458,69 @@ namespace Forge
                 if (File.Exists(localFilePath))
                 {
                     string ext = Path.GetExtension(localFilePath).ToLower();
-                    switch (ext)
+                    response.ContentType = ext switch
                     {
-                        case ".html": response.ContentType = "text/html"; break;
-                        case ".css": response.ContentType = "text/css"; break;
-                        case ".js": response.ContentType = "application/javascript"; break;
-                        case ".json": response.ContentType = "application/json"; break;
-                        case ".png": response.ContentType = "image/png"; break;
-                        case ".jpg": case ".jpeg": response.ContentType = "image/jpeg"; break;
-                        default: response.ContentType = "application/octet-stream"; break;
+                        ".html" => "text/html",
+                        ".css" => "text/css",
+                        ".js" => "application/javascript",
+                        ".json" => "application/json",
+                        ".png" => "image/png",
+                        ".jpg" or ".jpeg" => "image/jpeg",
+                        _ => "application/octet-stream"
+                    };
+
+                    // Compress if client supports it
+                    string acceptEncoding = request.Headers["Accept-Encoding"] ?? "";
+                    Stream responseStream = response.OutputStream;
+                    bool isCompressed = false;
+
+                    if (acceptEncoding.Contains("gzip", StringComparison.OrdinalIgnoreCase))
+                    {
+                        response.Headers.Add("Content-Encoding", "gzip");
+                        responseStream = new GZipStream(response.OutputStream, CompressionMode.Compress, leaveOpen: true);
+                        isCompressed = true;
+                    }
+                    else if (acceptEncoding.Contains("deflate", StringComparison.OrdinalIgnoreCase))
+                    {
+                        response.Headers.Add("Content-Encoding", "deflate");
+                        responseStream = new DeflateStream(response.OutputStream, CompressionMode.Compress, leaveOpen: true);
+                        isCompressed = true;
                     }
 
-                    response.SendChunked = true;
-                    using (var fileStream = File.OpenRead(localFilePath))
+                    try
                     {
-                        await fileStream.CopyToAsync(response.OutputStream, 8192);
+                        // Check Cache First
+                        if (_staticFileCache.TryGetValue(localFilePath, out var cachedData))
+                        {
+                            response.SendChunked = true;
+                            await responseStream.WriteAsync(cachedData, 0, cachedData.Length);
+                        }
+                        else
+                        {
+                            var fileInfo = new FileInfo(localFilePath);
+                            if (fileInfo.Length <= MaxCacheableFileSize)
+                            {
+                                byte[] fileData = await File.ReadAllBytesAsync(localFilePath);
+                                _staticFileCache.TryAdd(localFilePath, fileData);
+                                response.SendChunked = true;
+                                await responseStream.WriteAsync(fileData, 0, fileData.Length);
+                            }
+                            else
+                            {
+                                response.SendChunked = true;
+                                using (var fileStream = File.OpenRead(localFilePath))
+                                {
+                                    await StreamWithBufferPoolAsync(fileStream, responseStream);
+                                }
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        if (isCompressed)
+                        {
+                            await responseStream.DisposeAsync();
+                        }
                     }
                 }
                 else
@@ -460,6 +543,23 @@ namespace Forge
             finally
             {
                 response.Close();
+            }
+        }
+
+        private static async Task StreamWithBufferPoolAsync(Stream source, Stream destination, int bufferSize = 8192)
+        {
+            byte[] buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
+            try
+            {
+                int bytesRead;
+                while ((bytesRead = await source.ReadAsync(buffer, 0, buffer.Length)) > 0)
+                {
+                    await destination.WriteAsync(buffer, 0, bytesRead);
+                }
+            }
+            finally
+            {
+                ArrayPool<byte>.Shared.Return(buffer);
             }
         }
 
