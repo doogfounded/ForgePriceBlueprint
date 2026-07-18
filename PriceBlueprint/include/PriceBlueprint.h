@@ -319,6 +319,49 @@ namespace Pricing {
         }
     };
 
+    // Rule: Rounds the price according to a mode (e.g. NearestDollar, EndsIn99, EndsIn95, NearestNickel, NearestDime)
+    class RoundingRule : public PricingRule {
+    private:
+        std::string roundingMode;
+
+    public:
+        RoundingRule(std::string name, std::string roundingMode, bool enabled = true)
+            : PricingRule(std::move(name), enabled), roundingMode(std::move(roundingMode)) {}
+
+        void Execute(const PricingContext& context, double& currentPrice, std::vector<AuditRecord>& auditTrail) const override {
+            double originalPrice = currentPrice;
+            double roundedPrice = currentPrice;
+
+            if (roundingMode == "NearestDollar") {
+                roundedPrice = std::round(currentPrice);
+            }
+            else if (roundingMode == "EndsIn99") {
+                roundedPrice = std::round(currentPrice) - 0.01;
+            }
+            else if (roundingMode == "EndsIn95") {
+                roundedPrice = std::round(currentPrice) - 0.05;
+            }
+            else if (roundingMode == "NearestNickel") {
+                roundedPrice = std::round(currentPrice * 20.0) / 20.0;
+            }
+            else if (roundingMode == "NearestDime") {
+                roundedPrice = std::round(currentPrice * 10.0) / 10.0;
+            }
+
+            if (roundedPrice != originalPrice) {
+                currentPrice = roundedPrice;
+                std::string desc = "Applied " + roundingMode + " rounding.";
+                auditTrail.push_back({
+                    name,
+                    desc,
+                    originalPrice,
+                    currentPrice,
+                    currentPrice - originalPrice
+                });
+            }
+        }
+    };
+
     // The blueprint/specification template representing a structured pipeline of rules
     class PriceBlueprint {
     private:
@@ -404,6 +447,10 @@ namespace Pricing {
                         }
                     }
                     blueprint->AddRule(std::make_shared<TieredPricingRule>(name, quantityKey, tiers, enabled));
+                }
+                else if (type == "Rounding") {
+                    std::string roundingMode = ruleJson.value("RoundingMode", "NearestDollar");
+                    blueprint->AddRule(std::make_shared<RoundingRule>(name, roundingMode, enabled));
                 }
             }
 

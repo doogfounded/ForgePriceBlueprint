@@ -16,6 +16,7 @@
     --color-adjust: #f59e0b;    /* Amber */
     --color-flat: #06b6d4;      /* Cyan */
     --color-cap: #f43f5e;       /* Rose */
+    --color-rounding: #14b8a6;  /* Teal */
     --color-active: #10b981;    /* Emerald Green */
     --color-inactive: #4b5563;  /* Grey */
 
@@ -302,6 +303,7 @@ body {
 .rule-card[data-ruletype="PercentageAdjustment"] { border-left-color: var(--color-adjust); }
 .rule-card[data-ruletype="FlatAdjustment"] { border-left-color: var(--color-flat); }
 .rule-card[data-ruletype="PriceCap"] { border-left-color: var(--color-cap); }
+.rule-card[data-ruletype="Rounding"] { border-left-color: var(--color-rounding); }
 
 .rule-header {
     display: flex;
@@ -355,6 +357,7 @@ body {
 .rule-card[data-ruletype="PercentageAdjustment"] .rule-type-badge { background: rgba(245, 158, 11, 0.15); color: #fde68a; }
 .rule-card[data-ruletype="FlatAdjustment"] .rule-type-badge { background: rgba(6, 182, 212, 0.15); color: #a5f3fc; }
 .rule-card[data-ruletype="PriceCap"] .rule-type-badge { background: rgba(244, 63, 94, 0.15); color: #fecdd3; }
+.rule-card[data-ruletype="Rounding"] .rule-type-badge { background: rgba(20, 184, 166, 0.15); color: #99f6e4; }
 
 .rule-controls {
     display: flex;
@@ -406,7 +409,8 @@ body {
     color: var(--text-secondary);
 }
 
-.field-group input {
+.field-group input,
+.field-group select {
     background: rgba(0, 0, 0, 0.2);
     border: 1px solid var(--border-glass);
     border-radius: 6px;
@@ -417,7 +421,13 @@ body {
     transition: var(--transition-smooth);
 }
 
-.field-group input:focus {
+.field-group select option {
+    background: #0f172a;
+    color: var(--text-primary);
+}
+
+.field-group input:focus,
+.field-group select:focus {
     outline: none;
     border-color: var(--border-glass-focus);
 }

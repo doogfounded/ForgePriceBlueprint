@@ -194,6 +194,12 @@ const DEFAULT_RULES = {
         MinPrice: 130.0,
         MaxPrice: null,
         Enabled: true
+    }),
+    Rounding: () => ({
+        Type: "Rounding",
+        Name: "Charm Rounding",
+        RoundingMode: "EndsIn99",
+        Enabled: true
     })
 };
 
@@ -598,6 +604,20 @@ function renderVisualDesigner() {
             tiersEditor.innerHTML = tiersHtml;
             body.appendChild(tiersEditor);
         }
+        else if (rule.Type === 'Rounding') {
+            body.innerHTML = `
+                <div class="field-group span-2">
+                    <label>Rounding Mode</label>
+                    <select onchange="updateRuleField(${idx}, 'RoundingMode', this.value)">
+                        <option value="NearestDollar" ${rule.RoundingMode === 'NearestDollar' ? 'selected' : ''}>Nearest Dollar (e.g. $147.00)</option>
+                        <option value="EndsIn99" ${rule.RoundingMode === 'EndsIn99' ? 'selected' : ''}>Ends in .99 (e.g. $146.99)</option>
+                        <option value="EndsIn95" ${rule.RoundingMode === 'EndsIn95' ? 'selected' : ''}>Ends in .95 (e.g. $146.95)</option>
+                        <option value="NearestNickel" ${rule.RoundingMode === 'NearestNickel' ? 'selected' : ''}>Nearest Nickel (e.g. $146.65)</option>
+                        <option value="NearestDime" ${rule.RoundingMode === 'NearestDime' ? 'selected' : ''}>Nearest Dime (e.g. $146.60)</option>
+                    </select>
+                </div>
+            `;
+        }
 
         card.appendChild(body);
         rulesContainer.appendChild(card);
@@ -847,6 +867,36 @@ function runSimulator() {
                 step.description = `Quantity of ${qty} did not qualify for volume tiers.`;
             }
         }
+        else if (rule.Type === 'Rounding') {
+            let rounded = currentPrice;
+            const mode = rule.RoundingMode || "NearestDollar";
+
+            if (mode === "NearestDollar") {
+                rounded = Math.round(currentPrice);
+            }
+            else if (mode === "EndsIn99") {
+                rounded = Math.round(currentPrice) - 0.01;
+            }
+            else if (mode === "EndsIn95") {
+                rounded = Math.round(currentPrice) - 0.05;
+            }
+            else if (mode === "NearestNickel") {
+                rounded = Math.round(currentPrice * 20.0) / 20.0;
+            }
+            else if (mode === "NearestDime") {
+                rounded = Math.round(currentPrice * 10.0) / 10.0;
+            }
+
+            if (rounded !== currentPrice) {
+                step.active = true;
+                step.adjustment = rounded - currentPrice;
+                currentPrice = rounded;
+                step.outputPrice = currentPrice;
+                step.description = `Applied ${mode} rounding.`;
+            } else {
+                step.description = `Price already matches ${mode} rounding.`;
+            }
+        }
 
         auditTrail.push(step);
     });
@@ -918,6 +968,24 @@ function simulatePriceForQty(qty, qKey) {
             }
             if (discount > 0.0) {
                 currentPrice *= (1.0 - discount);
+            }
+        }
+        else if (rule.Type === 'Rounding') {
+            const mode = rule.RoundingMode || "NearestDollar";
+            if (mode === "NearestDollar") {
+                currentPrice = Math.round(currentPrice);
+            }
+            else if (mode === "EndsIn99") {
+                currentPrice = Math.round(currentPrice) - 0.01;
+            }
+            else if (mode === "EndsIn95") {
+                currentPrice = Math.round(currentPrice) - 0.05;
+            }
+            else if (mode === "NearestNickel") {
+                currentPrice = Math.round(currentPrice * 20.0) / 20.0;
+            }
+            else if (mode === "NearestDime") {
+                currentPrice = Math.round(currentPrice * 10.0) / 10.0;
             }
         }
     });
@@ -1171,6 +1239,9 @@ class Program
                 code += `, (${tier.MinQuantity}, ${tier.DiscountPercentage.toFixed(2)})`;
             });
             code += `)\n`;
+        }
+        else if (rule.Type === 'Rounding') {
+            code += `            .AddRounding("${rule.Name}", "${rule.RoundingMode || 'NearestDollar'}"${enabledArg})\n`;
         }
     });
 

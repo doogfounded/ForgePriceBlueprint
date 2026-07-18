@@ -17,6 +17,7 @@ namespace Forge
     [JsonDerivedType(typeof(FlatAdjustmentRuleDto))]
     [JsonDerivedType(typeof(PriceCapRuleDto))]
     [JsonDerivedType(typeof(TieredPricingRuleDto))]
+    [JsonDerivedType(typeof(RoundingRuleDto))]
     public abstract class PricingRuleDto
     {
         public string Type { get; set; }
@@ -99,6 +100,17 @@ namespace Forge
         }
     }
 
+    public class RoundingRuleDto : PricingRuleDto
+    {
+        public string RoundingMode { get; set; }
+
+        public RoundingRuleDto(string name, string roundingMode, bool enabled = true) 
+            : base("Rounding", name, enabled)
+        {
+            RoundingMode = roundingMode;
+        }
+    }
+
     public class TierDto
     {
         public double MinQuantity { get; set; }
@@ -164,6 +176,12 @@ namespace Forge
                 rule.Tiers.Add(new TierDto { MinQuantity = minQty, DiscountPercentage = discountPct });
             }
             _blueprint.Rules.Add(rule);
+            return this;
+        }
+
+        public BlueprintBuilder AddRounding(string ruleName, string roundingMode, bool enabled = true)
+        {
+            _blueprint.Rules.Add(new RoundingRuleDto(ruleName, roundingMode, enabled));
             return this;
         }
 
