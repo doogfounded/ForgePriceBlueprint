@@ -147,12 +147,15 @@ namespace Pricing {
     class PricingRule {
     protected:
         std::string name;
+        bool enabled;
 
     public:
-        explicit PricingRule(std::string ruleName) : name(std::move(ruleName)) {}
+        explicit PricingRule(std::string ruleName, bool enabled = true) 
+            : name(std::move(ruleName)), enabled(enabled) {}
         virtual ~PricingRule() = default;
 
         const std::string& GetName() const { return name; }
+        bool IsEnabled() const { return enabled; }
 
         // Evaluates the rule, modifying the price and adding an audit trail entry
         virtual void Execute(const PricingContext& context, double& currentPrice, std::vector<AuditRecord>& auditTrail) const = 0;
@@ -165,8 +168,8 @@ namespace Pricing {
         std::string contextKey;
 
     public:
-        BasePriceRule(std::string name, double defaultPrice, std::string contextKey = "base_price")
-            : PricingRule(std::move(name)), defaultPrice(defaultPrice), contextKey(std::move(contextKey)) {}
+        BasePriceRule(std::string name, double defaultPrice, std::string contextKey = "base_price", bool enabled = true)
+            : PricingRule(std::move(name), enabled), defaultPrice(defaultPrice), contextKey(std::move(contextKey)) {}
 
         void Execute(const PricingContext& context, double& currentPrice, std::vector<AuditRecord>& auditTrail) const override {
             double startPrice = context.Get<double>(contextKey).value_or(defaultPrice);
@@ -190,8 +193,8 @@ namespace Pricing {
         std::string desc;
 
     public:
-        PercentageAdjustmentRule(std::string name, double factor, std::string conditionKey, std::string desc)
-            : PricingRule(std::move(name)), factor(factor), conditionKey(std::move(conditionKey)), desc(std::move(desc)) {}
+        PercentageAdjustmentRule(std::string name, double factor, std::string conditionKey, std::string desc, bool enabled = true)
+            : PricingRule(std::move(name), enabled), factor(factor), conditionKey(std::move(conditionKey)), desc(std::move(desc)) {}
 
         void Execute(const PricingContext& context, double& currentPrice, std::vector<AuditRecord>& auditTrail) const override {
             bool conditionActive = EvaluateCondition(context, conditionKey);
@@ -217,8 +220,8 @@ namespace Pricing {
         std::string desc;
 
     public:
-        FlatAdjustmentRule(std::string name, double amount, std::string conditionKey, std::string desc)
-            : PricingRule(std::move(name)), amount(amount), conditionKey(std::move(conditionKey)), desc(std::move(desc)) {}
+        FlatAdjustmentRule(std::string name, double amount, std::string conditionKey, std::string desc, bool enabled = true)
+            : PricingRule(std::move(name), enabled), amount(amount), conditionKey(std::move(conditionKey)), desc(std::move(desc)) {}
 
         void Execute(const PricingContext& context, double& currentPrice, std::vector<AuditRecord>& auditTrail) const override {
             bool conditionActive = EvaluateCondition(context, conditionKey);
@@ -243,8 +246,8 @@ namespace Pricing {
         std::optional<double> maxPrice;
 
     public:
-        PriceCapRule(std::string name, std::optional<double> minPrice = std::nullopt, std::optional<double> maxPrice = std::nullopt)
-            : PricingRule(std::move(name)), minPrice(minPrice), maxPrice(maxPrice) {}
+        PriceCapRule(std::string name, std::optional<double> minPrice = std::nullopt, std::optional<double> maxPrice = std::nullopt, bool enabled = true)
+            : PricingRule(std::move(name), enabled), minPrice(minPrice), maxPrice(maxPrice) {}
 
         void Execute(const PricingContext& context, double& currentPrice, std::vector<AuditRecord>& auditTrail) const override {
             double originalPrice = currentPrice;
@@ -286,8 +289,8 @@ namespace Pricing {
         std::vector<Tier> tiers; // Ordered by minQuantity ascending
 
     public:
-        TieredPricingRule(std::string name, std::string quantityKey, std::vector<Tier> pricingTiers)
-            : PricingRule(std::move(name)), quantityKey(std::move(quantityKey)), tiers(std::move(pricingTiers)) {}
+        TieredPricingRule(std::string name, std::string quantityKey, std::vector<Tier> pricingTiers, bool enabled = true)
+            : PricingRule(std::move(name), enabled), quantityKey(std::move(quantityKey)), tiers(std::move(pricingTiers)) {}
 
         void Execute(const PricingContext& context, double& currentPrice, std::vector<AuditRecord>& auditTrail) const override {
             double quantity = context.Get<double>(quantityKey).value_or(0.0);
@@ -334,7 +337,9 @@ namespace Pricing {
             double currentPrice = 0.0;
             
             for (const auto& rule : rules) {
-                rule->Execute(context, currentPrice, result.auditTrail);
+                if (rule->IsEnabled()) {
+                    rule->Execute(context, currentPrice, result.auditTrail);
+                }
             }
             
             result.basePrice = result.auditTrail.empty() ? 0.0 : result.auditTrail.front().outputPrice;
@@ -358,23 +363,24 @@ namespace Pricing {
             for (const auto& ruleJson : j["Rules"]) {
                 std::string type = ruleJson.value("Type", "");
                 std::string name = ruleJson.value("Name", "");
+                bool enabled = ruleJson.value("Enabled", true);
 
                 if (type == "BasePrice") {
                     double defaultPrice = ruleJson.value("DefaultPrice", 0.0);
                     std::string contextKey = ruleJson.value("ContextKey", "base_price");
-                    blueprint->AddRule(std::make_shared<BasePriceRule>(name, defaultPrice, contextKey));
+                    blueprint->AddRule(std::make_shared<BasePriceRule>(name, defaultPrice, contextKey, enabled));
                 }
                 else if (type == "PercentageAdjustment") {
                     double factor = ruleJson.value("Factor", 1.0);
                     std::string conditionKey = ruleJson.value("ConditionKey", "");
                     std::string description = ruleJson.value("Description", "");
-                    blueprint->AddRule(std::make_shared<PercentageAdjustmentRule>(name, factor, conditionKey, description));
+                    blueprint->AddRule(std::make_shared<PercentageAdjustmentRule>(name, factor, conditionKey, description, enabled));
                 }
                 else if (type == "FlatAdjustment") {
                     double amount = ruleJson.value("Amount", 0.0);
                     std::string conditionKey = ruleJson.value("ConditionKey", "");
                     std::string description = ruleJson.value("Description", "");
-                    blueprint->AddRule(std::make_shared<FlatAdjustmentRule>(name, amount, conditionKey, description));
+                    blueprint->AddRule(std::make_shared<FlatAdjustmentRule>(name, amount, conditionKey, description, enabled));
                 }
                 else if (type == "PriceCap") {
                     std::optional<double> minPrice;
@@ -385,7 +391,7 @@ namespace Pricing {
                     if (ruleJson.contains("MaxPrice") && !ruleJson["MaxPrice"].is_null()) {
                         maxPrice = ruleJson.value("MaxPrice", 0.0);
                     }
-                    blueprint->AddRule(std::make_shared<PriceCapRule>(name, minPrice, maxPrice));
+                    blueprint->AddRule(std::make_shared<PriceCapRule>(name, minPrice, maxPrice, enabled));
                 }
                 else if (type == "TieredPricing") {
                     std::string quantityKey = ruleJson.value("QuantityKey", "");
@@ -397,7 +403,7 @@ namespace Pricing {
                             tiers.push_back({ minQuantity, discountPercentage });
                         }
                     }
-                    blueprint->AddRule(std::make_shared<TieredPricingRule>(name, quantityKey, tiers));
+                    blueprint->AddRule(std::make_shared<TieredPricingRule>(name, quantityKey, tiers, enabled));
                 }
             }
 

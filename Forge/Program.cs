@@ -21,11 +21,13 @@ namespace Forge
     {
         public string Type { get; set; }
         public string Name { get; set; }
+        public bool Enabled { get; set; } = true;
 
-        protected PricingRuleDto(string type, string name)
+        protected PricingRuleDto(string type, string name, bool enabled = true)
         {
             Type = type;
             Name = name;
+            Enabled = enabled;
         }
     }
 
@@ -34,8 +36,8 @@ namespace Forge
         public double DefaultPrice { get; set; }
         public string ContextKey { get; set; }
 
-        public BasePriceRuleDto(string name, double defaultPrice, string contextKey = "base_price") 
-            : base("BasePrice", name)
+        public BasePriceRuleDto(string name, double defaultPrice, string contextKey = "base_price", bool enabled = true) 
+            : base("BasePrice", name, enabled)
         {
             DefaultPrice = defaultPrice;
             ContextKey = contextKey;
@@ -48,8 +50,8 @@ namespace Forge
         public string ConditionKey { get; set; }
         public string Description { get; set; }
 
-        public PercentageAdjustmentRuleDto(string name, double factor, string conditionKey, string description) 
-            : base("PercentageAdjustment", name)
+        public PercentageAdjustmentRuleDto(string name, double factor, string conditionKey, string description, bool enabled = true) 
+            : base("PercentageAdjustment", name, enabled)
         {
             Factor = factor;
             ConditionKey = conditionKey;
@@ -63,8 +65,8 @@ namespace Forge
         public string ConditionKey { get; set; }
         public string Description { get; set; }
 
-        public FlatAdjustmentRuleDto(string name, double amount, string conditionKey, string description) 
-            : base("FlatAdjustment", name)
+        public FlatAdjustmentRuleDto(string name, double amount, string conditionKey, string description, bool enabled = true) 
+            : base("FlatAdjustment", name, enabled)
         {
             Amount = amount;
             ConditionKey = conditionKey;
@@ -77,8 +79,8 @@ namespace Forge
         public double? MinPrice { get; set; }
         public double? MaxPrice { get; set; }
 
-        public PriceCapRuleDto(string name, double? minPrice = null, double? maxPrice = null) 
-            : base("PriceCap", name)
+        public PriceCapRuleDto(string name, double? minPrice = null, double? maxPrice = null, bool enabled = true) 
+            : base("PriceCap", name, enabled)
         {
             MinPrice = minPrice;
             MaxPrice = maxPrice;
@@ -90,8 +92,8 @@ namespace Forge
         public string QuantityKey { get; set; }
         public List<TierDto> Tiers { get; set; } = new();
 
-        public TieredPricingRuleDto(string name, string quantityKey) 
-            : base("TieredPricing", name)
+        public TieredPricingRuleDto(string name, string quantityKey, bool enabled = true) 
+            : base("TieredPricing", name, enabled)
         {
             QuantityKey = quantityKey;
         }
@@ -125,33 +127,38 @@ namespace Forge
             _blueprint = new PriceBlueprintDto(name);
         }
 
-        public BlueprintBuilder SetBasePrice(string ruleName, double defaultPrice, string contextKey = "base_price")
+        public BlueprintBuilder SetBasePrice(string ruleName, double defaultPrice, string contextKey = "base_price", bool enabled = true)
         {
-            _blueprint.Rules.Add(new BasePriceRuleDto(ruleName, defaultPrice, contextKey));
+            _blueprint.Rules.Add(new BasePriceRuleDto(ruleName, defaultPrice, contextKey, enabled));
             return this;
         }
 
-        public BlueprintBuilder AddPercentageAdjustment(string ruleName, double factor, string conditionKey, string description)
+        public BlueprintBuilder AddPercentageAdjustment(string ruleName, double factor, string conditionKey, string description, bool enabled = true)
         {
-            _blueprint.Rules.Add(new PercentageAdjustmentRuleDto(ruleName, factor, conditionKey, description));
+            _blueprint.Rules.Add(new PercentageAdjustmentRuleDto(ruleName, factor, conditionKey, description, enabled));
             return this;
         }
 
-        public BlueprintBuilder AddFlatAdjustment(string ruleName, double amount, string conditionKey, string description)
+        public BlueprintBuilder AddFlatAdjustment(string ruleName, double amount, string conditionKey, string description, bool enabled = true)
         {
-            _blueprint.Rules.Add(new FlatAdjustmentRuleDto(ruleName, amount, conditionKey, description));
+            _blueprint.Rules.Add(new FlatAdjustmentRuleDto(ruleName, amount, conditionKey, description, enabled));
             return this;
         }
 
-        public BlueprintBuilder AddPriceCap(string ruleName, double? minPrice = null, double? maxPrice = null)
+        public BlueprintBuilder AddPriceCap(string ruleName, double? minPrice = null, double? maxPrice = null, bool enabled = true)
         {
-            _blueprint.Rules.Add(new PriceCapRuleDto(ruleName, minPrice, maxPrice));
+            _blueprint.Rules.Add(new PriceCapRuleDto(ruleName, minPrice, maxPrice, enabled));
             return this;
         }
 
         public BlueprintBuilder AddVolumeTiers(string ruleName, string quantityKey, params (double minQty, double discountPct)[] tiers)
         {
-            var rule = new TieredPricingRuleDto(ruleName, quantityKey);
+            return AddVolumeTiers(ruleName, quantityKey, true, tiers);
+        }
+
+        public BlueprintBuilder AddVolumeTiers(string ruleName, string quantityKey, bool enabled, params (double minQty, double discountPct)[] tiers)
+        {
+            var rule = new TieredPricingRuleDto(ruleName, quantityKey, enabled);
             foreach (var (minQty, discountPct) in tiers)
             {
                 rule.Tiers.Add(new TierDto { MinQuantity = minQty, DiscountPercentage = discountPct });

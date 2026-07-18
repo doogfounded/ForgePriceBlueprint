@@ -157,12 +157,14 @@ const DEFAULT_RULES = {
         Type: "BasePrice",
         Name: "Base Configuration Rate",
         DefaultPrice: 250.0,
-        ContextKey: "base_price"
+        ContextKey: "base_price",
+        Enabled: true
     }),
     TieredPricing: () => ({
         Type: "TieredPricing",
         Name: "Volume License Tiers",
         QuantityKey: "quantity",
+        Enabled: true,
         Tiers: [
             { MinQuantity: 10, DiscountPercentage: 0.05 },
             { MinQuantity: 50, DiscountPercentage: 0.10 },
@@ -175,20 +177,23 @@ const DEFAULT_RULES = {
         Name: "Partner Discount",
         Factor: 0.90,
         ConditionKey: "is_partner",
-        Description: "Partner Channel 10% discount"
+        Description: "Partner Channel 10% discount",
+        Enabled: true
     }),
     FlatAdjustment: () => ({
         Type: "FlatAdjustment",
         Name: "Shipping Surcharge",
         Amount: 15.0,
         ConditionKey: "quantity < 10",
-        Description: "Flat rate standard shipping fee for small orders"
+        Description: "Flat rate standard shipping fee for small orders",
+        Enabled: true
     }),
     PriceCap: () => ({
         Type: "PriceCap",
         Name: "Contract Price Floor Cap",
         MinPrice: 130.0,
-        MaxPrice: null
+        MaxPrice: null,
+        Enabled: true
     })
 };
 
@@ -398,6 +403,9 @@ function renderVisualDesigner() {
     blueprintState.Rules.forEach((rule, idx) => {
         const card = document.createElement('div');
         card.className = 'rule-card glass-card';
+        if (rule.Enabled === false) {
+            card.classList.add('disabled');
+        }
         card.setAttribute('data-ruletype', rule.Type);
         
         // Header
@@ -461,6 +469,20 @@ function renderVisualDesigner() {
         btnDel.title = "Delete Rule";
         btnDel.addEventListener('click', () => deleteRule(idx));
         
+        const btnToggle = document.createElement('button');
+        btnToggle.className = 'btn-ctrl btn-toggle-rule';
+        const isRuleEnabled = rule.Enabled !== false;
+        btnToggle.innerHTML = isRuleEnabled
+            ? `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`
+            : `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`;
+        btnToggle.title = isRuleEnabled ? "Disable Rule" : "Enable Rule";
+        btnToggle.style.color = isRuleEnabled ? "var(--color-active)" : "var(--text-muted)";
+        btnToggle.addEventListener('click', () => {
+            rule.Enabled = !isRuleEnabled;
+            onVisualChange();
+        });
+        
+        controls.appendChild(btnToggle);
         controls.appendChild(btnCollapse);
         controls.appendChild(btnUp);
         controls.appendChild(btnDown);
@@ -733,6 +755,13 @@ function runSimulator() {
             description: ""
         };
 
+        const isEnabled = rule.Enabled !== false;
+        if (!isEnabled) {
+            step.description = `Rule is disabled. Skipped.`;
+            auditTrail.push(step);
+            return;
+        }
+
         if (rule.Type === 'BasePrice') {
             const key = rule.ContextKey || "base_price";
             const val = (contextValues[key] !== undefined) ? contextValues[key] : rule.DefaultPrice;
@@ -854,6 +883,7 @@ function simulatePriceForQty(qty, qKey) {
     
     let currentPrice = 0.0;
     blueprintState.Rules.forEach(rule => {
+        if (rule.Enabled === false) return;
         if (rule.Type === 'BasePrice') {
             const key = rule.ContextKey || "base_price";
             currentPrice = (contextValues[key] !== undefined) ? contextValues[key] : rule.DefaultPrice;
@@ -1117,22 +1147,26 @@ class Program
         var blueprint = new BlueprintBuilder("${blueprintState.BlueprintName}")\n`;
 
     blueprintState.Rules.forEach(rule => {
+        const enabledArg = rule.Enabled === false ? ", enabled: false" : "";
         if (rule.Type === 'BasePrice') {
-            code += `            .SetBasePrice("${rule.Name}", ${rule.DefaultPrice.toFixed(1)}, "${rule.ContextKey || 'base_price'}")\n`;
+            code += `            .SetBasePrice("${rule.Name}", ${rule.DefaultPrice.toFixed(1)}, "${rule.ContextKey || 'base_price'}"${enabledArg})\n`;
         }
         else if (rule.Type === 'PercentageAdjustment') {
-            code += `            .AddPercentageAdjustment("${rule.Name}", ${rule.Factor.toFixed(2)}, "${rule.ConditionKey || ''}", "${rule.Description || ''}")\n`;
+            code += `            .AddPercentageAdjustment("${rule.Name}", ${rule.Factor.toFixed(2)}, "${rule.ConditionKey || ''}", "${rule.Description || ''}"${enabledArg})\n`;
         }
         else if (rule.Type === 'FlatAdjustment') {
-            code += `            .AddFlatAdjustment("${rule.Name}", ${rule.Amount.toFixed(1)}, "${rule.ConditionKey || ''}", "${rule.Description || ''}")\n`;
+            code += `            .AddFlatAdjustment("${rule.Name}", ${rule.Amount.toFixed(1)}, "${rule.ConditionKey || ''}", "${rule.Description || ''}"${enabledArg})\n`;
         }
         else if (rule.Type === 'PriceCap') {
             let minVal = rule.MinPrice !== null && rule.MinPrice !== undefined ? `${rule.MinPrice.toFixed(1)}` : 'null';
             let maxVal = rule.MaxPrice !== null && rule.MaxPrice !== undefined ? `${rule.MaxPrice.toFixed(1)}` : 'null';
-            code += `            .AddPriceCap("${rule.Name}", ${minVal}, ${maxVal})\n`;
+            code += `            .AddPriceCap("${rule.Name}", ${minVal}, ${maxVal}${enabledArg})\n`;
         }
         else if (rule.Type === 'TieredPricing') {
             code += `            .AddVolumeTiers("${rule.Name}", "${rule.QuantityKey || 'quantity'}"`;
+            if (rule.Enabled === false) {
+                code += `, false`;
+            }
             (rule.Tiers || []).forEach(tier => {
                 code += `, (${tier.MinQuantity}, ${tier.DiscountPercentage.toFixed(2)})`;
             });
