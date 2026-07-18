@@ -1043,3 +1043,64 @@ body {
 .btn-toggle-rule {
     transition: var(--transition-smooth);
 }
+
+/* What-If Scenario Matrix Styles */
+.matrix-panel {
+    margin-top: 1rem;
+}
+.matrix-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    border-bottom: 1px solid var(--border-glass);
+    padding-bottom: 0.4rem;
+}
+.matrix-header h3 {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.matrix-table-wrapper {
+    overflow-x: auto;
+}
+.matrix-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+.matrix-table th {
+    text-align: left;
+    padding: 0.5rem;
+    border-bottom: 1px solid var(--border-glass);
+    font-weight: 500;
+    color: var(--text-primary);
+}
+.matrix-table td {
+    padding: 0.5rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.matrix-table tbody tr {
+    transition: var(--transition-smooth);
+}
+.matrix-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.03);
+}
+.status-badge {
+    padding: 0.15rem 0.35rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 500;
+}
+.status-badge.active {
+    background: rgba(16, 185, 129, 0.15);
+    color: #a7f3d0;
+}
+.status-badge.inactive {
+    background: rgba(244, 63, 94, 0.15);
+    color: #fecdd3;
+}

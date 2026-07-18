@@ -17,6 +17,13 @@ let contextValues = {
     region: "EU"
 };
 
+// What-If Matrix saved scenarios
+let savedScenarios = [
+    { name: "Scenario A: Regular Small Order", variables: { base_price: 150, quantity: 5, region: "US", is_partner: false } },
+    { name: "Scenario B: Enterprise Bulk Order", variables: { base_price: 150, quantity: 120, region: "EU", is_partner: false } },
+    { name: "Scenario C: Partner Promo", variables: { base_price: 150, quantity: 50, region: "US", is_partner: true } }
+];
+
 // Preset Scenario Templates definitions
 const PRESET_SCENARIOS = {
     enterprise: {
@@ -335,6 +342,12 @@ function initEvents() {
             });
         });
     });
+
+    // Save scenario button
+    const btnAddScenario = document.getElementById('btn-add-scenario');
+    if (btnAddScenario) {
+        btnAddScenario.addEventListener('click', saveCurrentScenario);
+    }
 }
 
 // 4. Rule Mutators
@@ -969,6 +982,7 @@ function runSimulator() {
         statSavingsPct.className = 'stat-val';
     }
     drawPricingCurve();
+    renderScenarioMatrix();
 }
 
 function simulatePriceForQty(qty, qKey) {
@@ -1561,3 +1575,165 @@ window.addEventListener('DOMContentLoaded', () => {
     initEvents();
     loadBlueprintFromDisk();
 });
+
+// 11. Multi-Scenario "What-If" Analysis Matrix
+function renderScenarioMatrix() {
+    const tableHeader = document.getElementById('matrix-header-row');
+    const tableBody = document.getElementById('matrix-body');
+    if (!tableHeader || !tableBody) return;
+
+    // Scan active variables in the current ruleset
+    const vars = Array.from(scanContextVariables());
+
+    // Construct table headers
+    let headerHtml = `<th>Scenario Name</th>`;
+    vars.forEach(v => {
+        let label = v.replace('_', ' ');
+        label = label.charAt(0).toUpperCase() + label.slice(1);
+        headerHtml += `<th>${label}</th>`;
+    });
+    headerHtml += `<th>Final Price</th><th>Actions</th>`;
+    tableHeader.innerHTML = headerHtml;
+
+    // Construct table rows
+    tableBody.innerHTML = '';
+    savedScenarios.forEach((sc, idx) => {
+        let rowHtml = `<tr>
+            <td style="font-weight: 500; color: var(--text-primary); cursor: pointer;" onclick="loadScenario(${idx})" title="Click to load this scenario into simulator context">${sc.name}</td>
+        `;
+        vars.forEach(v => {
+            let val = sc.variables[v];
+            if (val === undefined) {
+                val = '';
+            }
+            if (typeof val === 'boolean') {
+                val = val ? '<span class="status-badge active">Yes</span>' : '<span class="status-badge inactive">No</span>';
+            } else if (typeof val === 'number') {
+                val = val.toFixed(0);
+            }
+            rowHtml += `<td>${val}</td>`;
+        });
+
+        // Calculate final price for this scenario
+        const finalPrice = calculatePriceForScenario(sc.variables);
+        rowHtml += `
+            <td style="font-weight: 600; color: var(--color-active);">$${finalPrice.toFixed(2)}</td>
+            <td>
+                <button class="btn-ctrl btn-delete" onclick="deleteScenario(event, ${idx})" title="Delete Scenario">
+                    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/></svg>
+                </button>
+            </td>
+        </tr>`;
+        tableBody.insertAdjacentHTML('beforeend', rowHtml);
+    });
+}
+
+function calculatePriceForScenario(variables) {
+    let currentPrice = 0.0;
+    blueprintState.Rules.forEach(rule => {
+        if (rule.Enabled === false) return;
+        if (rule.Type === 'BasePrice') {
+            const key = rule.ContextKey || "base_price";
+            currentPrice = (variables[key] !== undefined) ? variables[key] : rule.DefaultPrice;
+        }
+        else if (rule.Type === 'PercentageAdjustment') {
+            if (evaluateCondition(rule.ConditionKey, variables)) {
+                currentPrice *= rule.Factor;
+            }
+        }
+        else if (rule.Type === 'FlatAdjustment') {
+            if (evaluateCondition(rule.ConditionKey, variables)) {
+                currentPrice += rule.Amount;
+            }
+        }
+        else if (rule.Type === 'PriceCap') {
+            if (rule.MinPrice != null && currentPrice < rule.MinPrice) {
+                currentPrice = rule.MinPrice;
+            }
+            if (rule.MaxPrice != null && currentPrice > rule.MaxPrice) {
+                currentPrice = rule.MaxPrice;
+            }
+        }
+        else if (rule.Type === 'TieredPricing') {
+            const ruleQKey = rule.QuantityKey || "quantity";
+            const ruleQty = variables[ruleQKey] || 0.0;
+            let discount = 0.0;
+            const graduated = !!rule.Graduated;
+            const sortedTiers = [...(rule.Tiers || [])].sort((a, b) => a.MinQuantity - b.MinQuantity);
+
+            if (graduated && ruleQty > 0.0) {
+                let totalDiscountUnits = 0.0;
+                let prevQty = 0.0;
+                let prevDiscount = 0.0;
+                for (const tier of sortedTiers) {
+                    if (ruleQty > tier.MinQuantity) {
+                        totalDiscountUnits += (tier.MinQuantity - prevQty) * prevDiscount;
+                        prevQty = tier.MinQuantity;
+                        prevDiscount = tier.DiscountPercentage;
+                    } else {
+                        totalDiscountUnits += (ruleQty - prevQty) * prevDiscount;
+                        prevQty = ruleQty;
+                        break;
+                    }
+                }
+                if (ruleQty > prevQty) {
+                    totalDiscountUnits += (ruleQty - prevQty) * prevDiscount;
+                }
+                discount = totalDiscountUnits / ruleQty;
+            } else {
+                for (const tier of sortedTiers) {
+                    if (ruleQty >= tier.MinQuantity) {
+                        discount = tier.DiscountPercentage;
+                    }
+                }
+            }
+
+            if (discount > 0.0) {
+                currentPrice *= (1.0 - discount);
+            }
+        }
+        else if (rule.Type === 'Rounding') {
+            const mode = rule.RoundingMode || "NearestDollar";
+            if (mode === "NearestDollar") {
+                currentPrice = Math.round(currentPrice);
+            }
+            else if (mode === "EndsIn99") {
+                currentPrice = Math.round(currentPrice) - 0.01;
+            }
+            else if (mode === "EndsIn95") {
+                currentPrice = Math.round(currentPrice) - 0.05;
+            }
+            else if (mode === "NearestNickel") {
+                currentPrice = Math.round(currentPrice * 20.0) / 20.0;
+            }
+            else if (mode === "NearestDime") {
+                currentPrice = Math.round(currentPrice * 10.0) / 10.0;
+            }
+        }
+    });
+    return currentPrice;
+}
+
+function saveCurrentScenario() {
+    const name = prompt("Enter scenario name:", "Scenario " + (savedScenarios.length + 1));
+    if (!name) return;
+    const variablesCopy = { ...contextValues };
+    savedScenarios.push({ name, variables: variablesCopy });
+    renderScenarioMatrix();
+}
+
+function loadScenario(idx) {
+    const sc = savedScenarios[idx];
+    if (!sc) return;
+    Object.keys(sc.variables).forEach(k => {
+        contextValues[k] = sc.variables[k];
+    });
+    renderContextInputs();
+    runSimulator();
+}
+
+function deleteScenario(event, idx) {
+    event.stopPropagation();
+    savedScenarios.splice(idx, 1);
+    renderScenarioMatrix();
+}
