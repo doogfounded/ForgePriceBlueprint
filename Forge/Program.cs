@@ -368,10 +368,12 @@ namespace Forge
                     string filePath = Path.Combine(solutionRoot, "enterprise_blueprint.json");
                     if (File.Exists(filePath))
                     {
-                        byte[] data = await File.ReadAllBytesAsync(filePath);
                         response.ContentType = "application/json";
-                        response.ContentLength64 = data.Length;
-                        await response.OutputStream.WriteAsync(data, 0, data.Length);
+                        response.SendChunked = true;
+                        using (var fileStream = File.OpenRead(filePath))
+                        {
+                            await fileStream.CopyToAsync(response.OutputStream, 8192);
+                        }
                     }
                     else
                     {
@@ -432,10 +434,10 @@ namespace Forge
                         default: response.ContentType = "application/octet-stream"; break;
                     }
 
+                    response.SendChunked = true;
                     using (var fileStream = File.OpenRead(localFilePath))
                     {
-                        response.ContentLength64 = fileStream.Length;
-                        await fileStream.CopyToAsync(response.OutputStream);
+                        await fileStream.CopyToAsync(response.OutputStream, 8192);
                     }
                 }
                 else
