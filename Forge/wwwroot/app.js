@@ -164,6 +164,7 @@ const DEFAULT_RULES = {
         Type: "TieredPricing",
         Name: "Volume License Tiers",
         QuantityKey: "quantity",
+        Graduated: false,
         Enabled: true,
         Tiers: [
             { MinQuantity: 10, DiscountPercentage: 0.05 },
@@ -593,11 +594,17 @@ function renderVisualDesigner() {
 
             tiersHtml += `</div>`;
             
-            // Context quantity variable
+            // Context quantity variable & Graduated toggle
             tiersHtml += `
-                <div class="field-group">
-                    <label>Quantity Key</label>
-                    <input type="text" value="${rule.QuantityKey || 'quantity'}" oninput="updateRuleField(${idx}, 'QuantityKey', this.value)">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; width: 100%; margin-top: 0.5rem;">
+                    <div class="field-group">
+                        <label>Quantity Key</label>
+                        <input type="text" value="${rule.QuantityKey || 'quantity'}" oninput="updateRuleField(${idx}, 'QuantityKey', this.value)">
+                    </div>
+                    <div class="checkbox-wrapper" style="margin-top: 1.25rem;">
+                        <input type="checkbox" id="grad-${idx}" ${rule.Graduated ? 'checked' : ''} onchange="updateRuleField(${idx}, 'Graduated', this.checked)">
+                        <label for="grad-${idx}">Graduated Pricing</label>
+                    </div>
                 </div>
             `;
 
@@ -861,13 +868,35 @@ function runSimulator() {
             const qKey = rule.QuantityKey || "quantity";
             const qty = contextValues[qKey] || 0.0;
             let discount = 0.0;
+            const graduated = !!rule.Graduated;
 
             // Sort tiers ascending by MinQuantity
             const sortedTiers = [...(rule.Tiers || [])].sort((a, b) => a.MinQuantity - b.MinQuantity);
             
-            for (const tier of sortedTiers) {
-                if (qty >= tier.MinQuantity) {
-                    discount = tier.DiscountPercentage;
+            if (graduated && qty > 0.0) {
+                let totalDiscountUnits = 0.0;
+                let prevQty = 0.0;
+                let prevDiscount = 0.0;
+                for (const tier of sortedTiers) {
+                    if (qty > tier.MinQuantity) {
+                        totalDiscountUnits += (tier.MinQuantity - prevQty) * prevDiscount;
+                        prevQty = tier.MinQuantity;
+                        prevDiscount = tier.DiscountPercentage;
+                    } else {
+                        totalDiscountUnits += (qty - prevQty) * prevDiscount;
+                        prevQty = qty;
+                        break;
+                    }
+                }
+                if (qty > prevQty) {
+                    totalDiscountUnits += (qty - prevQty) * prevDiscount;
+                }
+                discount = totalDiscountUnits / qty;
+            } else {
+                for (const tier of sortedTiers) {
+                    if (qty >= tier.MinQuantity) {
+                        discount = tier.DiscountPercentage;
+                    }
                 }
             }
 
@@ -876,7 +905,8 @@ function runSimulator() {
                 step.active = true;
                 step.adjustment = currentPrice - step.inputPrice;
                 step.outputPrice = currentPrice;
-                step.description = `Applied volume discount of ${(discount*100).toFixed(0)}% for quantity of ${qty} (Tier Min Qty reached: ${rule.Tiers.find(t => t.DiscountPercentage === discount).MinQuantity}).`;
+                const formattedDiscount = graduated ? (discount * 100).toFixed(1) : (discount * 100).toFixed(0);
+                step.description = `Applied ${graduated ? "graduated blended" : "volume"} discount of ${formattedDiscount}% for quantity of ${qty}.`;
             } else {
                 step.description = `Quantity of ${qty} did not qualify for volume tiers.`;
             }
@@ -974,12 +1004,36 @@ function simulatePriceForQty(qty, qKey) {
             const ruleQKey = rule.QuantityKey || "quantity";
             const ruleQty = contextValues[ruleQKey] || 0.0;
             let discount = 0.0;
+            const graduated = !!rule.Graduated;
             const sortedTiers = [...(rule.Tiers || [])].sort((a, b) => a.MinQuantity - b.MinQuantity);
-            for (const tier of sortedTiers) {
-                if (ruleQty >= tier.MinQuantity) {
-                    discount = tier.DiscountPercentage;
+
+            if (graduated && ruleQty > 0.0) {
+                let totalDiscountUnits = 0.0;
+                let prevQty = 0.0;
+                let prevDiscount = 0.0;
+                for (const tier of sortedTiers) {
+                    if (ruleQty > tier.MinQuantity) {
+                        totalDiscountUnits += (tier.MinQuantity - prevQty) * prevDiscount;
+                        prevQty = tier.MinQuantity;
+                        prevDiscount = tier.DiscountPercentage;
+                    } else {
+                        totalDiscountUnits += (ruleQty - prevQty) * prevDiscount;
+                        prevQty = ruleQty;
+                        break;
+                    }
+                }
+                if (ruleQty > prevQty) {
+                    totalDiscountUnits += (ruleQty - prevQty) * prevDiscount;
+                }
+                discount = totalDiscountUnits / ruleQty;
+            } else {
+                for (const tier of sortedTiers) {
+                    if (ruleQty >= tier.MinQuantity) {
+                        discount = tier.DiscountPercentage;
+                    }
                 }
             }
+
             if (discount > 0.0) {
                 currentPrice *= (1.0 - discount);
             }
@@ -1246,8 +1300,8 @@ class Program
         }
         else if (rule.Type === 'TieredPricing') {
             code += `            .AddVolumeTiers("${rule.Name}", "${rule.QuantityKey || 'quantity'}"`;
-            if (rule.Enabled === false) {
-                code += `, false`;
+            if (rule.Graduated || rule.Enabled === false) {
+                code += `, ${rule.Graduated ? 'true' : 'false'}, ${rule.Enabled !== false ? 'true' : 'false'}`;
             }
             (rule.Tiers || []).forEach(tier => {
                 code += `, (${tier.MinQuantity}, ${tier.DiscountPercentage.toFixed(2)})`;

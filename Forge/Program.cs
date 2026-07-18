@@ -91,12 +91,14 @@ namespace Forge
     public class TieredPricingRuleDto : PricingRuleDto
     {
         public string QuantityKey { get; set; }
+        public bool Graduated { get; set; } = false;
         public List<TierDto> Tiers { get; set; } = new();
 
-        public TieredPricingRuleDto(string name, string quantityKey, bool enabled = true) 
+        public TieredPricingRuleDto(string name, string quantityKey, bool graduated = false, bool enabled = true) 
             : base("TieredPricing", name, enabled)
         {
             QuantityKey = quantityKey;
+            Graduated = graduated;
         }
     }
 
@@ -165,12 +167,17 @@ namespace Forge
 
         public BlueprintBuilder AddVolumeTiers(string ruleName, string quantityKey, params (double minQty, double discountPct)[] tiers)
         {
-            return AddVolumeTiers(ruleName, quantityKey, true, tiers);
+            return AddVolumeTiers(ruleName, quantityKey, false, true, tiers);
         }
 
         public BlueprintBuilder AddVolumeTiers(string ruleName, string quantityKey, bool enabled, params (double minQty, double discountPct)[] tiers)
         {
-            var rule = new TieredPricingRuleDto(ruleName, quantityKey, enabled);
+            return AddVolumeTiers(ruleName, quantityKey, false, enabled, tiers);
+        }
+
+        public BlueprintBuilder AddVolumeTiers(string ruleName, string quantityKey, bool graduated, bool enabled, params (double minQty, double discountPct)[] tiers)
+        {
+            var rule = new TieredPricingRuleDto(ruleName, quantityKey, graduated, enabled);
             foreach (var (minQty, discountPct) in tiers)
             {
                 rule.Tiers.Add(new TierDto { MinQuantity = minQty, DiscountPercentage = discountPct });

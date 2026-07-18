@@ -1,1 +1,67 @@
-{"BlueprintName":"Enterprise Custom Contract","Rules":[{"DefaultPrice":250,"ContextKey":"base_price","Type":"BasePrice","Name":"Base Configuration Rate","Enabled":true},{"QuantityKey":"quantity","Tiers":[{"MinQuantity":10,"DiscountPercentage":0.05},{"MinQuantity":50,"DiscountPercentage":0.1},{"MinQuantity":100,"DiscountPercentage":0.15},{"MinQuantity":500,"DiscountPercentage":0.25}],"Type":"TieredPricing","Name":"Volume License Tiers","Enabled":true},{"Factor":0.9,"ConditionKey":"is_partner","Description":"Partner Channel 10% discount","Type":"PercentageAdjustment","Name":"Partner Discount","Enabled":true},{"Amount":15,"ConditionKey":"quantity < 10","Description":"Flat rate standard shipping fee for small orders","Type":"FlatAdjustment","Name":"Shipping & Handling Surcharge","Enabled":true},{"Factor":1.15,"ConditionKey":"region IN EU,CA,MX","Description":"International regional sales tax of 15%","Type":"PercentageAdjustment","Name":"International Tax Surcharge","Enabled":true},{"MinPrice":130,"Type":"PriceCap","Name":"Contract Price Floor Cap","Enabled":true}]}
+{
+  "BlueprintName": "Enterprise Custom Contract",
+  "Rules": [
+    {
+      "DefaultPrice": 250,
+      "ContextKey": "base_price",
+      "Type": "BasePrice",
+      "Name": "Base Configuration Rate",
+      "Enabled": true
+    },
+    {
+      "QuantityKey": "quantity",
+      "Graduated": true,
+      "Tiers": [
+        {
+          "MinQuantity": 10,
+          "DiscountPercentage": 0.05
+        },
+        {
+          "MinQuantity": 50,
+          "DiscountPercentage": 0.1
+        },
+        {
+          "MinQuantity": 100,
+          "DiscountPercentage": 0.15
+        },
+        {
+          "MinQuantity": 500,
+          "DiscountPercentage": 0.25
+        }
+      ],
+      "Type": "TieredPricing",
+      "Name": "Volume License Tiers",
+      "Enabled": true
+    },
+    {
+      "Factor": 0.9,
+      "ConditionKey": "is_partner",
+      "Description": "Partner Channel 10% discount",
+      "Type": "PercentageAdjustment",
+      "Name": "Partner Discount",
+      "Enabled": true
+    },
+    {
+      "Amount": 15,
+      "ConditionKey": "quantity \u003C 10",
+      "Description": "Flat rate standard shipping fee for small orders",
+      "Type": "FlatAdjustment",
+      "Name": "Shipping \u0026 Handling Surcharge",
+      "Enabled": true
+    },
+    {
+      "Factor": 1.15,
+      "ConditionKey": "region != US",
+      "Description": "International regional sales tax of 15%",
+      "Type": "PercentageAdjustment",
+      "Name": "International Tax Surcharge",
+      "Enabled": true
+    },
+    {
+      "MinPrice": 130,
+      "Type": "PriceCap",
+      "Name": "Contract Price Floor Cap",
+      "Enabled": true
+    }
+  ]
+}

@@ -324,18 +324,41 @@ namespace Pricing {
     private:
         std::string quantityKey;
         std::vector<Tier> tiers; // Ordered by minQuantity ascending
+        bool graduated;
 
     public:
-        TieredPricingRule(std::string name, std::string quantityKey, std::vector<Tier> pricingTiers, bool enabled = true)
-            : PricingRule(std::move(name), enabled), quantityKey(std::move(quantityKey)), tiers(std::move(pricingTiers)) {}
+        TieredPricingRule(std::string name, std::string quantityKey, std::vector<Tier> pricingTiers, bool graduated = false, bool enabled = true)
+            : PricingRule(std::move(name), enabled), quantityKey(std::move(quantityKey)), tiers(std::move(pricingTiers)), graduated(graduated) {}
 
         void Execute(const PricingContext& context, double& currentPrice, std::vector<AuditRecord>& auditTrail) const override {
             double quantity = context.Get<double>(quantityKey).value_or(0.0);
             double applicableDiscount = 0.0;
             
-            for (const auto& tier : tiers) {
-                if (quantity >= tier.minQuantity) {
-                    applicableDiscount = tier.discountPercentage;
+            if (graduated && quantity > 0.0) {
+                double totalDiscountUnits = 0.0;
+                double prevQty = 0.0;
+                double prevDiscount = 0.0;
+
+                for (const auto& tier : tiers) {
+                    if (quantity > tier.minQuantity) {
+                        totalDiscountUnits += (tier.minQuantity - prevQty) * prevDiscount;
+                        prevQty = tier.minQuantity;
+                        prevDiscount = tier.discountPercentage;
+                    } else {
+                        totalDiscountUnits += (quantity - prevQty) * prevDiscount;
+                        prevQty = quantity;
+                        break;
+                    }
+                }
+                if (quantity > prevQty) {
+                    totalDiscountUnits += (quantity - prevQty) * prevDiscount;
+                }
+                applicableDiscount = totalDiscountUnits / quantity;
+            } else {
+                for (const auto& tier : tiers) {
+                    if (quantity >= tier.minQuantity) {
+                        applicableDiscount = tier.discountPercentage;
+                    }
                 }
             }
 
@@ -343,7 +366,8 @@ namespace Pricing {
                 double originalPrice = currentPrice;
                 currentPrice *= (1.0 - applicableDiscount);
                 
-                std::string desc = "Applied volume discount of " + std::to_string(static_cast<int>(std::round(applicableDiscount * 100))) + 
+                std::string desc = "Applied " + std::string(graduated ? "graduated blended" : "volume") + 
+                                   " discount of " + std::to_string(static_cast<int>(std::round(applicableDiscount * 100))) + 
                                    "% for quantity of " + std::to_string(static_cast<int>(std::round(quantity))) + ".";
                 auditTrail.push_back({
                     name,
@@ -475,6 +499,7 @@ namespace Pricing {
                 }
                 else if (type == "TieredPricing") {
                     std::string quantityKey = ruleJson.value("QuantityKey", "");
+                    bool graduated = ruleJson.value("Graduated", false);
                     std::vector<TieredPricingRule::Tier> tiers;
                     if (ruleJson.contains("Tiers")) {
                         for (const auto& tierJson : ruleJson["Tiers"]) {
@@ -483,7 +508,7 @@ namespace Pricing {
                             tiers.push_back({ minQuantity, discountPercentage });
                         }
                     }
-                    blueprint->AddRule(std::make_shared<TieredPricingRule>(name, quantityKey, tiers, enabled));
+                    blueprint->AddRule(std::make_shared<TieredPricingRule>(name, quantityKey, tiers, graduated, enabled));
                 }
                 else if (type == "Rounding") {
                     std::string roundingMode = ruleJson.value("RoundingMode", "NearestDollar");
