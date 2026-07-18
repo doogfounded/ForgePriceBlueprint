@@ -704,7 +704,7 @@ function evaluateCondition(expr, context) {
     if (!expr || expr.trim() === '') return true;
 
     // Simple expressions parsing (e.g., "quantity < 10", "region != US", "is_partner")
-    const operators = ["==", "!=", ">=", "<=", ">", "<"];
+    const operators = ["==", "!=", ">=", "<=", ">", "<", " IN ", " in "];
     let op = null;
     let opPos = -1;
 
@@ -733,6 +733,10 @@ function evaluateCondition(expr, context) {
     
     // Type match comparison
     if (typeof left === 'number') {
+        if (op === " IN " || op === " in ") {
+            const items = valStr.split(',').map(s => parseFloat(s.trim()));
+            return items.includes(left);
+        }
         let right = parseFloat(valStr);
         if (isNaN(right)) return false;
         if (op === "==") return left === right;
@@ -748,6 +752,16 @@ function evaluateCondition(expr, context) {
         if (op === "!=") return left != right;
     }
     else if (typeof left === 'string') {
+        if (op === " IN " || op === " in ") {
+            const items = valStr.split(',').map(s => {
+                let sTrim = s.trim();
+                if (sTrim.startsWith('"') && sTrim.endsWith('"')) {
+                    sTrim = sTrim.substring(1, sTrim.length - 1);
+                }
+                return sTrim;
+            });
+            return items.includes(left);
+        }
         let right = valStr;
         if (right.startsWith('"') && right.endsWith('"')) {
             right = right.substring(1, right.length - 1);

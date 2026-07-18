@@ -50,7 +50,7 @@ namespace Pricing {
         // Search for operators
         std::string op = "";
         size_t opPos = std::string::npos;
-        std::string operators[] = { "==", "!=", ">=", "<=", ">", "<" };
+        std::string operators[] = { "==", "!=", ">=", "<=", ">", "<", " IN ", " in " };
         for (const auto& possibleOp : operators) {
             opPos = conditionExpr.find(possibleOp);
             if (opPos != std::string::npos) {
@@ -75,6 +75,24 @@ namespace Pricing {
         trim(key);
         trim(valStr);
 
+        // Split and trim helper
+        auto splitAndTrim = [&trim](const std::string& s, char delim) {
+            std::vector<std::string> elems;
+            size_t start = 0;
+            size_t end = s.find(delim);
+            while (end != std::string::npos) {
+                std::string token = s.substr(start, end - start);
+                trim(token);
+                elems.push_back(token);
+                start = end + 1;
+                end = s.find(delim, start);
+            }
+            std::string token = s.substr(start);
+            trim(token);
+            elems.push_back(token);
+            return elems;
+        };
+
         if (!context.Has(key)) {
             return false;
         }
@@ -82,6 +100,15 @@ namespace Pricing {
         // Type matching comparison
         if (context.Get<double>(key).has_value()) {
             double left = context.Get<double>(key).value();
+            if (op == " IN " || op == " in ") {
+                std::vector<std::string> items = splitAndTrim(valStr, ',');
+                for (const auto& item : items) {
+                    try {
+                        if (left == std::stod(item)) return true;
+                    } catch (...) {}
+                }
+                return false;
+            }
             double right = std::stod(valStr);
             if (op == "==") return left == right;
             if (op == "!=") return left != right;
@@ -98,6 +125,16 @@ namespace Pricing {
         }
         else if (context.Get<std::string>(key).has_value()) {
             std::string left = context.Get<std::string>(key).value();
+            if (op == " IN " || op == " in ") {
+                std::vector<std::string> items = splitAndTrim(valStr, ',');
+                for (auto& item : items) {
+                    if (item.front() == '"' && item.back() == '"') {
+                        item = item.substr(1, item.length() - 2);
+                    }
+                    if (left == item) return true;
+                }
+                return false;
+            }
             std::string right = valStr;
             if (right.front() == '"' && right.back() == '"') {
                 right = right.substr(1, right.length() - 2);
