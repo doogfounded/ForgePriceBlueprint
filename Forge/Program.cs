@@ -330,7 +330,7 @@ namespace Forge
                     var context = await listener.GetContextAsync();
                     if (token.IsCancellationRequested) break;
                     
-                    _ = Task.Run(() => ProcessRequest(context, wwwrootPath, solutionRoot));
+                    _ = ProcessRequestAsync(context, wwwrootPath, solutionRoot);
                 }
                 catch (Exception)
                 {
@@ -339,7 +339,7 @@ namespace Forge
             }
         }
 
-        private static void ProcessRequest(HttpListenerContext context, string wwwrootPath, string solutionRoot)
+        private static async Task ProcessRequestAsync(HttpListenerContext context, string wwwrootPath, string solutionRoot)
         {
             var request = context.Request;
             var response = context.Response;
@@ -368,10 +368,10 @@ namespace Forge
                     string filePath = Path.Combine(solutionRoot, "enterprise_blueprint.json");
                     if (File.Exists(filePath))
                     {
-                        byte[] data = File.ReadAllBytes(filePath);
+                        byte[] data = await File.ReadAllBytesAsync(filePath);
                         response.ContentType = "application/json";
                         response.ContentLength64 = data.Length;
-                        response.OutputStream.Write(data, 0, data.Length);
+                        await response.OutputStream.WriteAsync(data, 0, data.Length);
                     }
                     else
                     {
@@ -379,7 +379,7 @@ namespace Forge
                         byte[] error = Encoding.UTF8.GetBytes("{\"error\": \"Blueprint file not found on disk.\"}");
                         response.ContentType = "application/json";
                         response.ContentLength64 = error.Length;
-                        response.OutputStream.Write(error, 0, error.Length);
+                        await response.OutputStream.WriteAsync(error, 0, error.Length);
                     }
                     response.Close();
                     return;
@@ -389,19 +389,19 @@ namespace Forge
                 {
                     using (var reader = new StreamReader(request.InputStream, request.ContentEncoding ?? Encoding.UTF8))
                     {
-                        string body = reader.ReadToEnd();
+                        string body = await reader.ReadToEndAsync();
                         try
                         {
                             using (var doc = JsonDocument.Parse(body))
                             {
                                 string filePath = Path.Combine(solutionRoot, "enterprise_blueprint.json");
-                                File.WriteAllText(filePath, body);
+                                await File.WriteAllTextAsync(filePath, body);
                                 
                                 response.StatusCode = (int)HttpStatusCode.OK;
                                 byte[] success = Encoding.UTF8.GetBytes("{\"status\": \"success\", \"message\": \"Blueprint saved successfully.\"}");
                                 response.ContentType = "application/json";
                                 response.ContentLength64 = success.Length;
-                                response.OutputStream.Write(success, 0, success.Length);
+                                await response.OutputStream.WriteAsync(success, 0, success.Length);
                             }
                         }
                         catch (JsonException ex)
@@ -410,7 +410,7 @@ namespace Forge
                             byte[] error = Encoding.UTF8.GetBytes($"{{\"error\": \"Invalid JSON blueprint: {ex.Message}\"}}");
                             response.ContentType = "application/json";
                             response.ContentLength64 = error.Length;
-                            response.OutputStream.Write(error, 0, error.Length);
+                            await response.OutputStream.WriteAsync(error, 0, error.Length);
                         }
                     }
                     response.Close();
@@ -432,9 +432,9 @@ namespace Forge
                         default: response.ContentType = "application/octet-stream"; break;
                     }
 
-                    byte[] fileData = File.ReadAllBytes(localFilePath);
+                    byte[] fileData = await File.ReadAllBytesAsync(localFilePath);
                     response.ContentLength64 = fileData.Length;
-                    response.OutputStream.Write(fileData, 0, fileData.Length);
+                    await response.OutputStream.WriteAsync(fileData, 0, fileData.Length);
                 }
                 else
                 {
@@ -442,7 +442,7 @@ namespace Forge
                     byte[] notFoundData = Encoding.UTF8.GetBytes("<h1>404 Not Found</h1><p>Requested file could not be found.</p>");
                     response.ContentType = "text/html";
                     response.ContentLength64 = notFoundData.Length;
-                    response.OutputStream.Write(notFoundData, 0, notFoundData.Length);
+                    await response.OutputStream.WriteAsync(notFoundData, 0, notFoundData.Length);
                 }
             }
             catch (Exception ex)
@@ -451,7 +451,7 @@ namespace Forge
                 byte[] errorData = Encoding.UTF8.GetBytes($"<h1>500 Internal Server Error</h1><p>{ex.Message}</p>");
                 response.ContentType = "text/html";
                 response.ContentLength64 = errorData.Length;
-                response.OutputStream.Write(errorData, 0, errorData.Length);
+                await response.OutputStream.WriteAsync(errorData, 0, errorData.Length);
             }
             finally
             {
