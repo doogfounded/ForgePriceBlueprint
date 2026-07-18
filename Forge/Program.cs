@@ -432,9 +432,11 @@ namespace Forge
                         default: response.ContentType = "application/octet-stream"; break;
                     }
 
-                    byte[] fileData = await File.ReadAllBytesAsync(localFilePath);
-                    response.ContentLength64 = fileData.Length;
-                    await response.OutputStream.WriteAsync(fileData, 0, fileData.Length);
+                    using (var fileStream = File.OpenRead(localFilePath))
+                    {
+                        response.ContentLength64 = fileStream.Length;
+                        await fileStream.CopyToAsync(response.OutputStream);
+                    }
                 }
                 else
                 {
