@@ -226,6 +226,7 @@ namespace Forge
 
                 bool runWeb = false;
                 int port = 5000;
+                string blueprintFile = "enterprise_blueprint.json";
 
                 for (int i = 0; i < args.Length; i++)
                 {
@@ -241,9 +242,17 @@ namespace Forge
                             i++;
                         }
                     }
+                    else if ((args[i] == "--file" || args[i] == "-f") && i + 1 < args.Length)
+                    {
+                        blueprintFile = args[i + 1];
+                        i++;
+                    }
                 }
 
                 string solutionRoot = GetSolutionRoot();
+                string blueprintPath = Path.IsPathRooted(blueprintFile)
+                    ? blueprintFile
+                    : Path.Combine(solutionRoot, blueprintFile);
 
                 if (runWeb)
                 {
@@ -252,7 +261,7 @@ namespace Forge
                     {
                         wwwrootPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "wwwroot");
                     }
-                    StartWebServer(wwwrootPath, solutionRoot, port);
+                    StartWebServer(wwwrootPath, solutionRoot, blueprintPath, port);
                 }
                 else
                 {
@@ -283,9 +292,8 @@ namespace Forge
                     Log.Information("Generated Blueprint JSON Specification:\n{JsonOutput}", jsonOutput);
 
                     Log.Information("Writing specification blueprint to disk...");
-                    string path = Path.Combine(solutionRoot, "enterprise_blueprint.json");
-                    File.WriteAllText(path, jsonOutput);
-                    Log.Information("Successfully saved to: {Path}", path);
+                    File.WriteAllText(blueprintPath, jsonOutput);
+                    Log.Information("Successfully saved to: {Path}", blueprintPath);
                     Log.Information("Forge successfully assembled the final pricing blueprint.");
                 }
             }
@@ -299,7 +307,7 @@ namespace Forge
             }
         }
 
-        private static void StartWebServer(string wwwrootPath, string solutionRoot, int port)
+        private static void StartWebServer(string wwwrootPath, string solutionRoot, string blueprintPath, int port)
         {
             var listener = new HttpListener();
             string url = "";
@@ -344,7 +352,7 @@ namespace Forge
 
             Log.Information("--> Blueprint Studio server running on: {Url}", url);
             Log.Information("    Serving web files from: {WwwrootPath}", wwwrootPath);
-            Log.Information("    Reading/writing to: {BlueprintPath}", Path.Combine(solutionRoot, "enterprise_blueprint.json"));
+            Log.Information("    Reading/writing to: {BlueprintPath}", blueprintPath);
             Log.Information("    Press [Enter] or Ctrl+C in this terminal to shut down the server.");
 
             // Launch browser asynchronously
@@ -362,7 +370,7 @@ namespace Forge
             });
 
             var cts = new CancellationTokenSource();
-            var serverTask = Task.Run(() => HandleRequests(listener, wwwrootPath, solutionRoot, cts.Token));
+            var serverTask = Task.Run(() => HandleRequests(listener, wwwrootPath, solutionRoot, blueprintPath, cts.Token));
 
             Console.ReadLine();
             Log.Information("Shutting down Blueprint Studio server...");
@@ -372,7 +380,7 @@ namespace Forge
             Log.Information("Server stopped.");
         }
 
-        private static async Task HandleRequests(HttpListener listener, string wwwrootPath, string solutionRoot, CancellationToken token)
+        private static async Task HandleRequests(HttpListener listener, string wwwrootPath, string solutionRoot, string blueprintPath, CancellationToken token)
         {
             while (!token.IsCancellationRequested)
             {
@@ -381,7 +389,7 @@ namespace Forge
                     var context = await listener.GetContextAsync();
                     if (token.IsCancellationRequested) break;
                     
-                    _ = ProcessRequestAsync(context, wwwrootPath, solutionRoot);
+                    _ = ProcessRequestAsync(context, wwwrootPath, solutionRoot, blueprintPath);
                 }
                 catch (Exception)
                 {
@@ -390,7 +398,7 @@ namespace Forge
             }
         }
 
-        private static async Task ProcessRequestAsync(HttpListenerContext context, string wwwrootPath, string solutionRoot)
+        private static async Task ProcessRequestAsync(HttpListenerContext context, string wwwrootPath, string solutionRoot, string blueprintPath)
         {
             var request = context.Request;
             var response = context.Response;
@@ -438,7 +446,7 @@ namespace Forge
 
                 if (rawPath.Equals("/api/blueprint", StringComparison.OrdinalIgnoreCase) && request.HttpMethod == "GET")
                 {
-                    string filePath = Path.Combine(solutionRoot, "enterprise_blueprint.json");
+                    string filePath = blueprintPath;
                     if (File.Exists(filePath))
                     {
                         response.ContentType = "application/json";
@@ -498,7 +506,7 @@ namespace Forge
                         {
                             using (var doc = JsonDocument.Parse(body))
                             {
-                                string filePath = Path.Combine(solutionRoot, "enterprise_blueprint.json");
+                                string filePath = blueprintPath;
                                 await File.WriteAllTextAsync(filePath, body);
                                 
                                 response.StatusCode = (int)HttpStatusCode.OK;
@@ -537,7 +545,6 @@ namespace Forge
                                 await File.WriteAllTextAsync(tempScenariosPath, body);
                             }
 
-                            string blueprintPath = Path.Combine(solutionRoot, "enterprise_blueprint.json");
                             string exeFilename = "price_blueprint.exe";
                             string exePath = Path.Combine(solutionRoot, exeFilename);
                             
@@ -636,7 +643,7 @@ namespace Forge
                         // If request body is empty, read the active file from disk
                         if (string.IsNullOrWhiteSpace(blueprintJson))
                         {
-                            string activePath = Path.Combine(solutionRoot, "enterprise_blueprint.json");
+                            string activePath = blueprintPath;
                             if (File.Exists(activePath))
                             {
                                 blueprintJson = await File.ReadAllTextAsync(activePath);
@@ -644,7 +651,7 @@ namespace Forge
                             else
                             {
                                 response.StatusCode = (int)HttpStatusCode.BadRequest;
-                                byte[] error = Encoding.UTF8.GetBytes("{\"error\": \"No blueprint JSON provided in request body and active enterprise_blueprint.json not found on disk.\"}");
+                                byte[] error = Encoding.UTF8.GetBytes($"{{\"error\": \"No blueprint JSON provided in request body and active blueprint file not found at {blueprintPath}.\"}}");
                                 response.ContentType = "application/json";
                                 response.ContentLength64 = error.Length;
                                 await response.OutputStream.WriteAsync(error, 0, error.Length);
@@ -767,7 +774,7 @@ namespace Forge
                             await File.WriteAllTextAsync(tempScenariosPath, scenariosJson);
 
                             // 3. Temporarily save blueprint if we parsed a custom request body
-                            string originalBlueprintPath = Path.Combine(solutionRoot, "enterprise_blueprint.json");
+                            string originalBlueprintPath = blueprintPath;
                             string validationBlueprintPath = originalBlueprintPath;
                             bool isCustomBlueprint = !string.IsNullOrWhiteSpace(body);
 
