@@ -12,6 +12,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using System.Diagnostics;
 using System.Linq;
+using Serilog;
 
 namespace Forge
 {
@@ -209,74 +210,90 @@ namespace Forge
 
         public static void Main(string[] args)
         {
-            Console.WriteLine("=================================================");
-            Console.WriteLine("   Forge: Pricing Operating System Assembler     ");
-            Console.WriteLine("=================================================");
+            Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Debug()
+                .WriteTo.Console()
+                .WriteTo.File(Path.Combine(GetSolutionRoot(), "logs", "forge-.txt"), rollingInterval: RollingInterval.Day)
+                .CreateLogger();
 
-            bool runWeb = false;
-            int port = 5000;
-
-            for (int i = 0; i < args.Length; i++)
+            try
             {
-                if (args[i] == "--web" || args[i] == "-w")
+                Log.Information("=================================================");
+                Log.Information("   Forge: Pricing Operating System Assembler     ");
+                Log.Information("=================================================");
+
+                bool runWeb = false;
+                int port = 5000;
+
+                for (int i = 0; i < args.Length; i++)
                 {
-                    runWeb = true;
-                }
-                else if ((args[i] == "--port" || args[i] == "-p") && i + 1 < args.Length)
-                {
-                    if (int.TryParse(args[i + 1], out int p))
+                    if (args[i] == "--web" || args[i] == "-w")
                     {
-                        port = p;
-                        i++;
+                        runWeb = true;
+                    }
+                    else if ((args[i] == "--port" || args[i] == "-p") && i + 1 < args.Length)
+                    {
+                        if (int.TryParse(args[i + 1], out int p))
+                        {
+                            port = p;
+                            i++;
+                        }
                     }
                 }
-            }
 
-            string solutionRoot = GetSolutionRoot();
+                string solutionRoot = GetSolutionRoot();
 
-            if (runWeb)
-            {
-                string wwwrootPath = Path.Combine(solutionRoot, "Forge", "wwwroot");
-                if (!Directory.Exists(wwwrootPath))
+                if (runWeb)
                 {
-                    wwwrootPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "wwwroot");
+                    string wwwrootPath = Path.Combine(solutionRoot, "Forge", "wwwroot");
+                    if (!Directory.Exists(wwwrootPath))
+                    {
+                        wwwrootPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "wwwroot");
+                    }
+                    StartWebServer(wwwrootPath, solutionRoot, port);
                 }
-                StartWebServer(wwwrootPath, solutionRoot, port);
-            }
-            else
-            {
-                // Assemble a pricing blueprint using the Fluent Builder
-                var blueprint = new BlueprintBuilder("Enterprise Custom Contract")
-                    .SetBasePrice("Base Configuration Rate", 250.0)
-                    .AddVolumeTiers("Volume License Tiers", "quantity", 
-                        (10, 0.05),   // 5% off at 10 units
-                        (50, 0.10),   // 10% off at 50 units
-                        (100, 0.15),  // 15% off at 100 units
-                        (500, 0.25)   // 25% off at 500 units
-                    )
-                    .AddPercentageAdjustment("Partner Discount", 0.90, "is_partner", "Partner Channel 10% discount")
-                    .AddFlatAdjustment("Shipping & Handling Surcharge", 15.0, "quantity < 10", "Flat rate standard shipping fee for small orders")
-                    .AddPercentageAdjustment("International Tax Surcharge", 1.15, "region != US", "International regional sales tax of 15%")
-                    .AddPriceCap("Contract Price Floor Cap", minPrice: 130.0)
-                    .Build();
-
-                // Configure JSON options for serialization
-                var options = new JsonSerializerOptions
+                else
                 {
-                    WriteIndented = true,
-                    DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-                };
+                    // Assemble a pricing blueprint using the Fluent Builder
+                    var blueprint = new BlueprintBuilder("Enterprise Custom Contract")
+                        .SetBasePrice("Base Configuration Rate", 250.0)
+                        .AddVolumeTiers("Volume License Tiers", "quantity", 
+                            (10, 0.05),   // 5% off at 10 units
+                            (50, 0.10),   // 10% off at 50 units
+                            (100, 0.15),  // 15% off at 100 units
+                            (500, 0.25)   // 25% off at 500 units
+                        )
+                        .AddPercentageAdjustment("Partner Discount", 0.90, "is_partner", "Partner Channel 10% discount")
+                        .AddFlatAdjustment("Shipping & Handling Surcharge", 15.0, "quantity < 10", "Flat rate standard shipping fee for small orders")
+                        .AddPercentageAdjustment("International Tax Surcharge", 1.15, "region != US", "International regional sales tax of 15%")
+                        .AddPriceCap("Contract Price Floor Cap", minPrice: 130.0)
+                        .Build();
 
-                string jsonOutput = JsonSerializer.Serialize(blueprint, options);
+                    // Configure JSON options for serialization
+                    var options = new JsonSerializerOptions
+                    {
+                        WriteIndented = true,
+                        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+                    };
 
-                Console.WriteLine("\nGenerated Blueprint JSON Specification:\n");
-                Console.WriteLine(jsonOutput);
+                    string jsonOutput = JsonSerializer.Serialize(blueprint, options);
 
-                Console.WriteLine("\nWriting specification blueprint to disk...");
-                string path = Path.Combine(solutionRoot, "enterprise_blueprint.json");
-                File.WriteAllText(path, jsonOutput);
-                Console.WriteLine($"Successfully saved to: {path}\n");
-                Console.WriteLine("Forge successfully assembled the final pricing blueprint.");
+                    Log.Information("Generated Blueprint JSON Specification:\n{JsonOutput}", jsonOutput);
+
+                    Log.Information("Writing specification blueprint to disk...");
+                    string path = Path.Combine(solutionRoot, "enterprise_blueprint.json");
+                    File.WriteAllText(path, jsonOutput);
+                    Log.Information("Successfully saved to: {Path}", path);
+                    Log.Information("Forge successfully assembled the final pricing blueprint.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Fatal(ex, "Host terminated unexpectedly");
+            }
+            finally
+            {
+                Log.CloseAndFlush();
             }
         }
 
@@ -292,16 +309,14 @@ namespace Forge
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error: Failed to start web server on {url}.");
-                Console.WriteLine("Make sure the port is not in use, or run as administrator if needed.");
-                Console.WriteLine($"Details: {ex.Message}");
+                Log.Error(ex, "Failed to start web server on {Url}. Make sure the port is not in use, or run as administrator if needed.", url);
                 return;
             }
 
-            Console.WriteLine($"\n--> Blueprint Studio server running on: {url}");
-            Console.WriteLine($"    Serving web files from: {wwwrootPath}");
-            Console.WriteLine($"    Reading/writing to: {Path.Combine(solutionRoot, "enterprise_blueprint.json")}\n");
-            Console.WriteLine("    Press [Enter] or Ctrl+C in this terminal to shut down the server.");
+            Log.Information("--> Blueprint Studio server running on: {Url}", url);
+            Log.Information("    Serving web files from: {WwwrootPath}", wwwrootPath);
+            Log.Information("    Reading/writing to: {BlueprintPath}", Path.Combine(solutionRoot, "enterprise_blueprint.json"));
+            Log.Information("    Press [Enter] or Ctrl+C in this terminal to shut down the server.");
 
             // Launch browser asynchronously
             Task.Run(() =>
@@ -313,7 +328,7 @@ namespace Forge
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"Warning: Could not open browser automatically: {ex.Message}");
+                    Log.Warning(ex, "Could not open browser automatically");
                 }
             });
 
@@ -321,11 +336,11 @@ namespace Forge
             var serverTask = Task.Run(() => HandleRequests(listener, wwwrootPath, solutionRoot, cts.Token));
 
             Console.ReadLine();
-            Console.WriteLine("Shutting down Blueprint Studio server...");
+            Log.Information("Shutting down Blueprint Studio server...");
             cts.Cancel();
             listener.Stop();
             try { serverTask.Wait(); } catch { }
-            Console.WriteLine("Server stopped.");
+            Log.Information("Server stopped.");
         }
 
         private static async Task HandleRequests(HttpListener listener, string wwwrootPath, string solutionRoot, CancellationToken token)
