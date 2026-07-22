@@ -1,5 +1,15 @@
 // Forge Price Blueprint Studio App Logic
 
+function escapeHTML(str) {
+    if (str === null || str === undefined) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 // 1. Current State
 let blueprintState = {
     BlueprintName: "Enterprise Custom Contract",
@@ -528,7 +538,7 @@ function renderVisualDesigner() {
                 </div>
                 <div class="field-group">
                     <label>Context Key</label>
-                    <input type="text" value="${rule.ContextKey || 'base_price'}" oninput="updateRuleField(${idx}, 'ContextKey', this.value)">
+                    <input type="text" value="${escapeHTML(rule.ContextKey || 'base_price')}" oninput="updateRuleField(${idx}, 'ContextKey', this.value)">
                 </div>
             `;
         }
@@ -540,11 +550,11 @@ function renderVisualDesigner() {
                 </div>
                 <div class="field-group">
                     <label>Condition Key / Expr</label>
-                    <input type="text" value="${rule.ConditionKey || ''}" placeholder="e.g. is_partner" oninput="updateRuleField(${idx}, 'ConditionKey', this.value)">
+                    <input type="text" value="${escapeHTML(rule.ConditionKey || '')}" placeholder="e.g. is_partner" oninput="updateRuleField(${idx}, 'ConditionKey', this.value)">
                 </div>
                 <div class="field-group span-2">
                     <label>Description</label>
-                    <input type="text" value="${rule.Description || ''}" placeholder="Brief details..." oninput="updateRuleField(${idx}, 'Description', this.value)">
+                    <input type="text" value="${escapeHTML(rule.Description || '')}" placeholder="Brief details..." oninput="updateRuleField(${idx}, 'Description', this.value)">
                 </div>
             `;
         }
@@ -556,11 +566,11 @@ function renderVisualDesigner() {
                 </div>
                 <div class="field-group">
                     <label>Condition Key / Expr</label>
-                    <input type="text" value="${rule.ConditionKey || ''}" placeholder="e.g. quantity < 10" oninput="updateRuleField(${idx}, 'ConditionKey', this.value)">
+                    <input type="text" value="${escapeHTML(rule.ConditionKey || '')}" placeholder="e.g. quantity < 10" oninput="updateRuleField(${idx}, 'ConditionKey', this.value)">
                 </div>
                 <div class="field-group span-2">
                     <label>Description</label>
-                    <input type="text" value="${rule.Description || ''}" placeholder="Brief details..." oninput="updateRuleField(${idx}, 'Description', this.value)">
+                    <input type="text" value="${escapeHTML(rule.Description || '')}" placeholder="Brief details..." oninput="updateRuleField(${idx}, 'Description', this.value)">
                 </div>
             `;
         }
@@ -612,7 +622,7 @@ function renderVisualDesigner() {
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; width: 100%; margin-top: 0.5rem;">
                     <div class="field-group">
                         <label>Quantity Key</label>
-                        <input type="text" value="${rule.QuantityKey || 'quantity'}" oninput="updateRuleField(${idx}, 'QuantityKey', this.value)">
+                        <input type="text" value="${escapeHTML(rule.QuantityKey || 'quantity')}" oninput="updateRuleField(${idx}, 'QuantityKey', this.value)">
                     </div>
                     <div class="checkbox-wrapper" style="margin-top: 1.25rem;">
                         <input type="checkbox" id="grad-${idx}" ${rule.Graduated ? 'checked' : ''} onchange="updateRuleField(${idx}, 'Graduated', this.checked)">
@@ -684,8 +694,8 @@ function renderContextInputs() {
             item.className = 'context-item span-2';
             item.innerHTML = `
                 <div class="checkbox-wrapper">
-                    <input type="checkbox" id="ctx-${vName}" ${contextValues[vName] ? 'checked' : ''}>
-                    <label for="ctx-${vName}">${vName} <span style="opacity: 0.5; font-size: 0.75rem;">(boolean)</span></label>
+                    <input type="checkbox" id="ctx-${escapeHTML(vName)}" ${contextValues[vName] ? 'checked' : ''}>
+                    <label for="ctx-${escapeHTML(vName)}">${escapeHTML(vName)} <span style="opacity: 0.5; font-size: 0.75rem;">(boolean)</span></label>
                 </div>
             `;
             const checkbox = item.querySelector('input');
@@ -695,8 +705,8 @@ function renderContextInputs() {
             });
         } else if (isNum) {
             item.innerHTML = `
-                <label for="ctx-${vName}">${vName} <span style="opacity: 0.5;">(number)</span></label>
-                <input type="number" id="ctx-${vName}" value="${contextValues[vName]}">
+                <label for="ctx-${escapeHTML(vName)}">${escapeHTML(vName)} <span style="opacity: 0.5;">(number)</span></label>
+                <input type="number" id="ctx-${escapeHTML(vName)}" value="${escapeHTML(contextValues[vName])}">
             `;
             const input = item.querySelector('input');
             input.addEventListener('input', () => {
@@ -705,8 +715,8 @@ function renderContextInputs() {
             });
         } else {
             item.innerHTML = `
-                <label for="ctx-${vName}">${vName} <span style="opacity: 0.5;">(string)</span></label>
-                <input type="text" id="ctx-${vName}" value="${contextValues[vName]}">
+                <label for="ctx-${escapeHTML(vName)}">${escapeHTML(vName)} <span style="opacity: 0.5;">(string)</span></label>
+                <input type="text" id="ctx-${escapeHTML(vName)}" value="${escapeHTML(contextValues[vName])}">
             `;
             const input = item.querySelector('input');
             input.addEventListener('input', () => {
@@ -1269,8 +1279,8 @@ function renderTrace(steps) {
         item.innerHTML = `
             <div class="trace-indicator">${idx + 1}</div>
             <div class="trace-details">
-                <div class="trace-step-title">${step.ruleName || 'Unnamed Rule'}</div>
-                <div class="trace-step-desc">${step.description}</div>
+                <div class="trace-step-title">${escapeHTML(step.ruleName || 'Unnamed Rule')}</div>
+                <div class="trace-step-desc">${escapeHTML(step.description)}</div>
                 ${step.active ? `
                     <div class="trace-calc-flow">
                         <span>$${step.inputPrice.toFixed(2)}</span>
@@ -1590,7 +1600,7 @@ function renderScenarioMatrix() {
     vars.forEach(v => {
         let label = v.replace('_', ' ');
         label = label.charAt(0).toUpperCase() + label.slice(1);
-        headerHtml += `<th>${label}</th>`;
+        headerHtml += `<th>${escapeHTML(label)}</th>`;
     });
     headerHtml += `<th>Final Price</th><th>Actions</th>`;
     tableHeader.innerHTML = headerHtml;
@@ -1599,7 +1609,7 @@ function renderScenarioMatrix() {
     tableBody.innerHTML = '';
     savedScenarios.forEach((sc, idx) => {
         let rowHtml = `<tr>
-            <td style="font-weight: 500; color: var(--text-primary); cursor: pointer;" onclick="loadScenario(${idx})" title="Click to load this scenario into simulator context">${sc.name}</td>
+            <td style="font-weight: 500; color: var(--text-primary); cursor: pointer;" onclick="loadScenario(${idx})" title="Click to load this scenario into simulator context">${escapeHTML(sc.name)}</td>
         `;
         vars.forEach(v => {
             let val = sc.variables[v];
@@ -1610,6 +1620,8 @@ function renderScenarioMatrix() {
                 val = val ? '<span class="status-badge active">Yes</span>' : '<span class="status-badge inactive">No</span>';
             } else if (typeof val === 'number') {
                 val = val.toFixed(0);
+            } else {
+                val = escapeHTML(val);
             }
             rowHtml += `<td>${val}</td>`;
         });
