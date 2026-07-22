@@ -301,17 +301,44 @@ namespace Forge
 
         private static void StartWebServer(string wwwrootPath, string solutionRoot, int port)
         {
-            string url = $"http://localhost:{port}/";
             var listener = new HttpListener();
-            listener.Prefixes.Add(url);
-            
-            try
+            string url = "";
+            bool bound = false;
+            int maxAttempts = 100;
+            int attempt = 0;
+
+            while (!bound && attempt < maxAttempts)
             {
-                listener.Start();
+                int currentPort = port + attempt;
+                url = $"http://localhost:{currentPort}/";
+                
+                listener.Prefixes.Clear();
+                listener.Prefixes.Add(url);
+
+                try
+                {
+                    listener.Start();
+                    bound = true;
+                    if (attempt > 0)
+                    {
+                        Log.Warning("Requested port {RequestedPort} was occupied. Automatically selected available port {AvailablePort}.", port, currentPort);
+                    }
+                }
+                catch (HttpListenerException ex)
+                {
+                    Log.Debug(ex, "Port {Port} occupied. Retrying next port...", currentPort);
+                    attempt++;
+                }
+                catch (Exception ex)
+                {
+                    Log.Error(ex, "Failed to start web server on {Url}. Aborting.", url);
+                    return;
+                }
             }
-            catch (Exception ex)
+
+            if (!bound)
             {
-                Log.Error(ex, "Failed to start web server on {Url}. Make sure the port is not in use, or run as administrator if needed.", url);
+                Log.Error("Could not find any available port starting from {RequestedPort} after {Attempts} attempts.", port, maxAttempts);
                 return;
             }
 
