@@ -351,7 +351,29 @@ namespace Forge
             var request = context.Request;
             var response = context.Response;
             
-            response.Headers.Add("Access-Control-Allow-Origin", "*");
+            // CORS & CSRF Protection: Validate Origin header if present to block malicious websites from calling our local API
+            string? origin = request.Headers["Origin"];
+            if (!string.IsNullOrEmpty(origin))
+            {
+                bool isLocalOrigin = origin.StartsWith("http://localhost:", StringComparison.OrdinalIgnoreCase) || 
+                                     origin.StartsWith("https://localhost:", StringComparison.OrdinalIgnoreCase) || 
+                                     origin.StartsWith("http://127.0.0.1:", StringComparison.OrdinalIgnoreCase) ||
+                                     origin.StartsWith("https://127.0.0.1:", StringComparison.OrdinalIgnoreCase);
+                
+                if (!isLocalOrigin)
+                {
+                    response.StatusCode = (int)HttpStatusCode.Forbidden;
+                    byte[] accessDenied = Encoding.UTF8.GetBytes("{\"error\": \"Forbidden: Cross-Origin request blocked. Local-only server access restriction.\"}");
+                    response.ContentType = "application/json";
+                    response.ContentLength64 = accessDenied.Length;
+                    await response.OutputStream.WriteAsync(accessDenied, 0, accessDenied.Length);
+                    response.Close();
+                    return;
+                }
+                
+                response.Headers.Add("Access-Control-Allow-Origin", origin);
+            }
+            
             response.Headers.Add("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
             response.Headers.Add("Access-Control-Allow-Headers", "Content-Type");
 
@@ -931,7 +953,20 @@ namespace Forge
                     return;
                 }
 
-                string localFilePath = Path.Combine(wwwrootPath, rawPath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar));
+                string localFilePath = Path.GetFullPath(Path.Combine(wwwrootPath, rawPath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar)));
+                string fullWwwroot = Path.GetFullPath(wwwrootPath);
+                
+                if (!localFilePath.StartsWith(fullWwwroot, StringComparison.OrdinalIgnoreCase))
+                {
+                    response.StatusCode = (int)HttpStatusCode.Forbidden;
+                    byte[] accessDenied = Encoding.UTF8.GetBytes("<h1>403 Forbidden</h1><p>Access denied. Path traversal request blocked.</p>");
+                    response.ContentType = "text/html";
+                    response.ContentLength64 = accessDenied.Length;
+                    await response.OutputStream.WriteAsync(accessDenied, 0, accessDenied.Length);
+                    response.Close();
+                    return;
+                }
+
                 if (File.Exists(localFilePath))
                 {
                     string ext = Path.GetExtension(localFilePath).ToLower();
