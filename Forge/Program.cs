@@ -127,12 +127,14 @@ namespace Forge
     // C# representation of the full blueprint
     public class PriceBlueprintDto
     {
+        public string Version { get; set; } = "1.0.0";
         public string BlueprintName { get; set; }
         public List<PricingRuleDto> Rules { get; set; } = new();
 
-        public PriceBlueprintDto(string name)
+        public PriceBlueprintDto(string name, string version = "1.0.0")
         {
             BlueprintName = name;
+            Version = version;
         }
     }
 
@@ -141,9 +143,9 @@ namespace Forge
     {
         private readonly PriceBlueprintDto _blueprint;
 
-        public BlueprintBuilder(string name)
+        public BlueprintBuilder(string name, string version = "1.0.0")
         {
-            _blueprint = new PriceBlueprintDto(name);
+            _blueprint = new PriceBlueprintDto(name, version);
         }
 
         public BlueprintBuilder SetBasePrice(string ruleName, double defaultPrice, string contextKey = "base_price", bool enabled = true)

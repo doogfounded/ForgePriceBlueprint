@@ -19,6 +19,19 @@ namespace Forge.Tests
         }
 
         [Fact]
+        public void Build_ShouldSupportCustomVersion()
+        {
+            // Arrange
+            var builder = new BlueprintBuilder("Test Blueprint", "2.1.0");
+
+            // Act
+            var blueprint = builder.Build();
+
+            // Assert
+            Assert.Equal("2.1.0", blueprint.Version);
+        }
+
+        [Fact]
         public void AddPercentageAdjustment_ShouldAddRuleToBlueprint()
         {
             // Arrange

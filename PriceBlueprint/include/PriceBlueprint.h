@@ -427,10 +427,12 @@ namespace Pricing {
     class PriceBlueprint {
     private:
         std::string blueprintName;
+        std::string version;
         std::vector<std::shared_ptr<PricingRule>> rules;
 
     public:
-        explicit PriceBlueprint(std::string name) : blueprintName(std::move(name)) {}
+        explicit PriceBlueprint(std::string name, std::string ver = "1.0.0") 
+            : blueprintName(std::move(name)), version(std::move(ver)) {}
 
         void AddRule(std::shared_ptr<PricingRule> rule) {
             rules.push_back(std::move(rule));
@@ -452,6 +454,7 @@ namespace Pricing {
         }
 
         const std::string& GetName() const { return blueprintName; }
+        const std::string& GetVersion() const { return version; }
 
         static std::shared_ptr<PriceBlueprint> LoadFromFile(const std::string& filePath) {
             std::ifstream file(filePath);
@@ -462,7 +465,8 @@ namespace Pricing {
             file >> j;
 
             std::string blueprintName = j.value("BlueprintName", "Unnamed Blueprint");
-            auto blueprint = std::make_shared<PriceBlueprint>(blueprintName);
+            std::string version = j.value("Version", "1.0.0");
+            auto blueprint = std::make_shared<PriceBlueprint>(blueprintName, version);
 
             for (const auto& ruleJson : j["Rules"]) {
                 std::string type = ruleJson.value("Type", "");

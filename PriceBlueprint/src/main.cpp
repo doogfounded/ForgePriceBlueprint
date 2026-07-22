@@ -101,8 +101,8 @@ int main(int argc, char* argv[]) {
                 throw std::runtime_error("Could not find enterprise_blueprint.json in any search path.");
             }
         }
-        std::cout << "Loading blueprint from: " << foundPath << "\n\n";
         blueprint = PriceBlueprint::LoadFromFile(foundPath);
+        std::cout << "Loading blueprint from: " << foundPath << " (Schema Version: " << blueprint->GetVersion() << ")\n\n";
     } catch (const std::exception& e) {
         std::cerr << "Error loading blueprint: " << e.what() << "\n";
         return 1;
