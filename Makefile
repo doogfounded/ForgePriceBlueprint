@@ -20,16 +20,25 @@ ifneq ($(wildcard $(VCPKG_INCLUDE)),)
     VCPKG_FLAGS = -I$(VCPKG_INCLUDE)
 endif
 
-# Build the C++ runtime (requires g++ and nlohmann/json header available in the include path)
+ifeq ($(OS),Windows_NT)
+    LIB_EXT = dll
+    EXE_EXT = .exe
+else
+    LIB_EXT = so
+    EXE_EXT = 
+endif
+
+# Build the C++ runtime (both the CLI executable and the shared dynamic library)
 build:
-	g++ -std=c++17 PriceBlueprint/src/main.cpp -IPriceBlueprint/include $(VCPKG_FLAGS) -o price_blueprint
+	g++ -std=c++17 PriceBlueprint/src/main.cpp -IPriceBlueprint/include $(VCPKG_FLAGS) -o price_blueprint$(EXE_EXT)
+	g++ -shared -fPIC -std=c++17 PriceBlueprint/src/library.cpp -IPriceBlueprint/include $(VCPKG_FLAGS) -o price_blueprint.$(LIB_EXT)
 
 # Generate then build then run
 run: generate build
-	./price_blueprint
+	./price_blueprint$(EXE_EXT)
 
 web:
 	dotnet run --project Forge/Forge.csproj --web
 
 clean:
-	rm -f price_blueprint
+	rm -f price_blueprint price_blueprint.exe price_blueprint.dll price_blueprint.so

@@ -45,7 +45,10 @@ if (Get-Command "g++" -ErrorAction SilentlyContinue) {
         $vcpkgFlags = "-I$vcpkgInclude"
     }
 
+    Write-Host "    Compiling CLI executable (price_blueprint.exe)..." -ForegroundColor DarkGray
     g++ -std=c++17 PriceBlueprint/src/main.cpp -IPriceBlueprint/include $vcpkgFlags -o price_blueprint.exe
+    Write-Host "    Compiling shared library (price_blueprint.dll)..." -ForegroundColor DarkGray
+    g++ -shared -fPIC -std=c++17 PriceBlueprint/src/library.cpp -IPriceBlueprint/include $vcpkgFlags -o price_blueprint.dll
     $builtExecutable = ".\price_blueprint.exe"
 }
 else {
