@@ -517,6 +517,91 @@ namespace Pricing {
         }
     };
 
+    using RuleParser = std::function<std::shared_ptr<PricingRule>(const std::string& name, bool enabled, const nlohmann::json& ruleJson)>;
+
+    class RuleRegistry {
+    private:
+        std::unordered_map<std::string, RuleParser> registry;
+        RuleRegistry() = default;
+
+    public:
+        static RuleRegistry& Instance() {
+            static RuleRegistry instance;
+            return instance;
+        }
+
+        void Register(const std::string& type, RuleParser parser) {
+            registry[type] = std::move(parser);
+        }
+
+        std::shared_ptr<PricingRule> Create(const std::string& type, const std::string& name, bool enabled, const nlohmann::json& ruleJson) const {
+            auto it = registry.find(type);
+            if (it != registry.end()) {
+                return it->second(name, enabled, ruleJson);
+            }
+            throw std::runtime_error("Unknown rule type: " + type);
+        }
+
+        bool IsRegistered(const std::string& type) const {
+            return registry.find(type) != registry.end();
+        }
+    };
+
+    inline void RegisterStandardRules() {
+        auto& reg = RuleRegistry::Instance();
+        
+        reg.Register("BasePrice", [](const std::string& name, bool enabled, const nlohmann::json& j) {
+            double defaultPrice = j.value("DefaultPrice", 0.0);
+            std::string contextKey = j.value("ContextKey", "base_price");
+            return std::make_shared<BasePriceRule>(name, defaultPrice, contextKey, enabled);
+        });
+
+        reg.Register("PercentageAdjustment", [](const std::string& name, bool enabled, const nlohmann::json& j) {
+            double factor = j.value("Factor", 1.0);
+            std::string conditionKey = j.value("ConditionKey", "");
+            std::string description = j.value("Description", "");
+            return std::make_shared<PercentageAdjustmentRule>(name, factor, conditionKey, description, enabled);
+        });
+
+        reg.Register("FlatAdjustment", [](const std::string& name, bool enabled, const nlohmann::json& j) {
+            double amount = j.value("Amount", 0.0);
+            std::string conditionKey = j.value("ConditionKey", "");
+            std::string description = j.value("Description", "");
+            return std::make_shared<FlatAdjustmentRule>(name, amount, conditionKey, description, enabled);
+        });
+
+        reg.Register("PriceCap", [](const std::string& name, bool enabled, const nlohmann::json& j) {
+            std::optional<double> minPrice;
+            std::optional<double> maxPrice;
+            if (j.contains("MinPrice") && !j["MinPrice"].is_null()) {
+                minPrice = j.value("MinPrice", 0.0);
+            }
+            if (j.contains("MaxPrice") && !j["MaxPrice"].is_null()) {
+                maxPrice = j.value("MaxPrice", 0.0);
+            }
+            return std::make_shared<PriceCapRule>(name, minPrice, maxPrice, enabled);
+        });
+
+        reg.Register("TieredPricing", [](const std::string& name, bool enabled, const nlohmann::json& j) {
+            std::string quantityKey = j.value("QuantityKey", "");
+            bool graduated = j.value("Graduated", false);
+            std::vector<TieredPricingRule::Tier> tiers;
+            if (j.contains("Tiers")) {
+                for (const auto& tierJson : j["Tiers"]) {
+                    double minQuantity = tierJson.value("MinQuantity", 0.0);
+                    double discountPercentage = tierJson.value("DiscountPercentage", 0.0);
+                    tiers.push_back({ minQuantity, discountPercentage });
+                }
+            }
+            return std::make_shared<TieredPricingRule>(name, quantityKey, tiers, graduated, enabled);
+        });
+
+        reg.Register("Rounding", [](const std::string& name, bool enabled, const nlohmann::json& j) {
+            std::string roundingMode = j.value("RoundingMode", "NearestDollar");
+            return std::make_shared<RoundingRule>(name, roundingMode, enabled);
+        });
+    }
+
     // The blueprint/specification template representing a structured pipeline of rules
     class PriceBlueprint {
     private:
@@ -558,6 +643,10 @@ namespace Pricing {
             nlohmann::json j;
             file >> j;
 
+            if (!RuleRegistry::Instance().IsRegistered("BasePrice")) {
+                RegisterStandardRules();
+            }
+
             std::string blueprintName = j.value("BlueprintName", "Unnamed Blueprint");
             std::string version = j.value("Version", "1.0.0");
             auto blueprint = std::make_shared<PriceBlueprint>(blueprintName, version);
@@ -567,51 +656,8 @@ namespace Pricing {
                 std::string name = ruleJson.value("Name", "");
                 bool enabled = ruleJson.value("Enabled", true);
 
-                if (type == "BasePrice") {
-                    double defaultPrice = ruleJson.value("DefaultPrice", 0.0);
-                    std::string contextKey = ruleJson.value("ContextKey", "base_price");
-                    blueprint->AddRule(std::make_shared<BasePriceRule>(name, defaultPrice, contextKey, enabled));
-                }
-                else if (type == "PercentageAdjustment") {
-                    double factor = ruleJson.value("Factor", 1.0);
-                    std::string conditionKey = ruleJson.value("ConditionKey", "");
-                    std::string description = ruleJson.value("Description", "");
-                    blueprint->AddRule(std::make_shared<PercentageAdjustmentRule>(name, factor, conditionKey, description, enabled));
-                }
-                else if (type == "FlatAdjustment") {
-                    double amount = ruleJson.value("Amount", 0.0);
-                    std::string conditionKey = ruleJson.value("ConditionKey", "");
-                    std::string description = ruleJson.value("Description", "");
-                    blueprint->AddRule(std::make_shared<FlatAdjustmentRule>(name, amount, conditionKey, description, enabled));
-                }
-                else if (type == "PriceCap") {
-                    std::optional<double> minPrice;
-                    std::optional<double> maxPrice;
-                    if (ruleJson.contains("MinPrice") && !ruleJson["MinPrice"].is_null()) {
-                        minPrice = ruleJson.value("MinPrice", 0.0);
-                    }
-                    if (ruleJson.contains("MaxPrice") && !ruleJson["MaxPrice"].is_null()) {
-                        maxPrice = ruleJson.value("MaxPrice", 0.0);
-                    }
-                    blueprint->AddRule(std::make_shared<PriceCapRule>(name, minPrice, maxPrice, enabled));
-                }
-                else if (type == "TieredPricing") {
-                    std::string quantityKey = ruleJson.value("QuantityKey", "");
-                    bool graduated = ruleJson.value("Graduated", false);
-                    std::vector<TieredPricingRule::Tier> tiers;
-                    if (ruleJson.contains("Tiers")) {
-                        for (const auto& tierJson : ruleJson["Tiers"]) {
-                            double minQuantity = tierJson.value("MinQuantity", 0.0);
-                            double discountPercentage = tierJson.value("DiscountPercentage", 0.0);
-                            tiers.push_back({ minQuantity, discountPercentage });
-                        }
-                    }
-                    blueprint->AddRule(std::make_shared<TieredPricingRule>(name, quantityKey, tiers, graduated, enabled));
-                }
-                else if (type == "Rounding") {
-                    std::string roundingMode = ruleJson.value("RoundingMode", "NearestDollar");
-                    blueprint->AddRule(std::make_shared<RoundingRule>(name, roundingMode, enabled));
-                }
+                auto rule = RuleRegistry::Instance().Create(type, name, enabled, ruleJson);
+                blueprint->AddRule(std::move(rule));
             }
 
             return blueprint;
