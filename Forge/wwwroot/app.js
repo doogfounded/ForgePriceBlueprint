@@ -19,6 +19,21 @@ let blueprintState = {
 // Keep track of collapsed rule indices in the designer view
 let collapsedRules = new Set();
 
+function saveCollapsedRules() {
+    try {
+        localStorage.setItem('forge_collapsed_rules', JSON.stringify(Array.from(collapsedRules)));
+    } catch(e) {}
+}
+
+function loadCollapsedRules() {
+    try {
+        const saved = localStorage.getItem('forge_collapsed_rules');
+        if (saved) {
+            collapsedRules = new Set(JSON.parse(saved));
+        }
+    } catch(e) {}
+}
+
 // Simulator context variables values
 let contextValues = {
     base_price: 250,
@@ -26,6 +41,21 @@ let contextValues = {
     is_partner: false,
     region: "EU"
 };
+
+function saveContextValues() {
+    try {
+        localStorage.setItem('forge_context_values', JSON.stringify(contextValues));
+    } catch(e) {}
+}
+
+function loadContextValues() {
+    try {
+        const saved = localStorage.getItem('forge_context_values');
+        if (saved) {
+            contextValues = JSON.parse(saved);
+        }
+    } catch(e) {}
+}
 
 // What-If Matrix saved scenarios
 let savedScenarios = [
@@ -355,6 +385,9 @@ function initEvents() {
             btn.classList.add('active');
             const tabId = btn.getAttribute('data-tab');
             document.getElementById(tabId).classList.add('active');
+            try {
+                localStorage.setItem('forge_active_tab', tabId);
+            } catch(e) {}
         });
     });
 
@@ -496,6 +529,7 @@ function renderVisualDesigner() {
             } else {
                 collapsedRules.add(idx);
             }
+            saveCollapsedRules();
             renderVisualDesigner();
         });
         
@@ -721,6 +755,7 @@ function renderContextInputs() {
             const checkbox = item.querySelector('input');
             checkbox.addEventListener('change', () => {
                 contextValues[vName] = checkbox.checked;
+                saveContextValues();
                 runSimulator();
             });
         } else if (isNum) {
@@ -731,6 +766,7 @@ function renderContextInputs() {
             const input = item.querySelector('input');
             input.addEventListener('input', () => {
                 contextValues[vName] = parseFloat(input.value) || 0;
+                saveContextValues();
                 runSimulator();
             });
         } else {
@@ -741,6 +777,7 @@ function renderContextInputs() {
             const input = item.querySelector('input');
             input.addEventListener('input', () => {
                 contextValues[vName] = input.value;
+                saveContextValues();
                 runSimulator();
             });
         }
@@ -1398,10 +1435,25 @@ function showToast() {
     }, 2000);
 }
 
+function loadActiveTab() {
+    try {
+        const savedTab = localStorage.getItem('forge_active_tab');
+        if (savedTab) {
+            const btn = document.querySelector(`.tab-btn[data-tab="${savedTab}"]`);
+            if (btn) {
+                btn.click();
+            }
+        }
+    } catch(e) {}
+}
+
 // 10. Startup
 window.addEventListener('DOMContentLoaded', () => {
+    loadCollapsedRules();
+    loadContextValues();
     initEvents();
     loadBlueprintFromDisk();
+    loadActiveTab();
 });
 
 // 11. Multi-Scenario "What-If" Analysis Matrix
