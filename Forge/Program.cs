@@ -276,7 +276,7 @@ namespace Forge
                         )
                         .AddPercentageAdjustment("Partner Discount", 0.90, "is_partner", "Partner Channel 10% discount")
                         .AddFlatAdjustment("Shipping & Handling Surcharge", 15.0, "quantity < 10", "Flat rate standard shipping fee for small orders")
-                        .AddPercentageAdjustment("International Tax Surcharge", 1.15, "region != US", "International regional sales tax of 15%")
+                        .AddPercentageAdjustment("International Tax Surcharge", 1.15, "region != US && quantity >= 10", "International regional sales tax of 15% for orders of 10 or more units")
                         .AddPriceCap("Contract Price Floor Cap", minPrice: 130.0)
                         .Build();
 

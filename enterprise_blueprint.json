@@ -52,8 +52,8 @@
     },
     {
       "Factor": 1.15,
-      "ConditionKey": "region != US",
-      "Description": "International regional sales tax of 15%",
+      "ConditionKey": "region != US \u0026\u0026 quantity \u003E= 10",
+      "Description": "International regional sales tax of 15% for orders of 10 or more units",
       "Type": "PercentageAdjustment",
       "Name": "International Tax Surcharge",
       "Enabled": true

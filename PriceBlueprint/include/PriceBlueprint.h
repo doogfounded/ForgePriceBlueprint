@@ -41,109 +41,203 @@ namespace Pricing {
         }
     };
 
-    // Evaluates simple expressions (e.g. "quantity >= 50", "region == US") on the PricingContext
-    inline bool EvaluateCondition(const PricingContext& context, const std::string& conditionExpr) {
-        if (conditionExpr.empty()) {
-            return true;
-        }
+    class ConditionParser {
+    private:
+        std::string expr;
+        size_t pos = 0;
 
-        // Search for operators
-        std::string op = "";
-        size_t opPos = std::string::npos;
-        std::string operators[] = { "==", "!=", ">=", "<=", ">", "<", " IN ", " in " };
-        for (const auto& possibleOp : operators) {
-            opPos = conditionExpr.find(possibleOp);
-            if (opPos != std::string::npos) {
-                op = possibleOp;
-                break;
+        void SkipWhitespace() {
+            while (pos < expr.length() && (expr[pos] == ' ' || expr[pos] == '\t' || expr[pos] == '\r' || expr[pos] == '\n')) {
+                pos++;
             }
         }
 
-        // Backwards compatibility: if no operator is present, treat the expression as a simple boolean key lookup
-        if (op.empty()) {
-            return context.Get<bool>(conditionExpr).value_or(false);
-        }
-
-        std::string key = conditionExpr.substr(0, opPos);
-        std::string valStr = conditionExpr.substr(opPos + op.length());
-
-        // Trim helper
-        auto trim = [](std::string& s) {
-            s.erase(0, s.find_first_not_of(" \t\r\n"));
-            s.erase(s.find_last_not_of(" \t\r\n") + 1);
-        };
-        trim(key);
-        trim(valStr);
-
-        // Split and trim helper
-        auto splitAndTrim = [&trim](const std::string& s, char delim) {
-            std::vector<std::string> elems;
-            size_t start = 0;
-            size_t end = s.find(delim);
-            while (end != std::string::npos) {
-                std::string token = s.substr(start, end - start);
-                trim(token);
-                elems.push_back(token);
-                start = end + 1;
-                end = s.find(delim, start);
+        bool Match(const std::string& token) {
+            SkipWhitespace();
+            if (pos + token.length() <= expr.length() && expr.compare(pos, token.length(), token) == 0) {
+                pos += token.length();
+                return true;
             }
-            std::string token = s.substr(start);
-            trim(token);
-            elems.push_back(token);
-            return elems;
-        };
-
-        if (!context.Has(key)) {
             return false;
         }
 
-        // Type matching comparison
-        if (context.Get<double>(key).has_value()) {
-            double left = context.Get<double>(key).value();
-            if (op == " IN " || op == " in ") {
-                std::vector<std::string> items = splitAndTrim(valStr, ',');
-                for (const auto& item : items) {
-                    try {
-                        if (left == std::stod(item)) return true;
-                    } catch (...) {}
-                }
-                return false;
+        bool Peek(const std::string& token) {
+            SkipWhitespace();
+            if (pos + token.length() <= expr.length() && expr.compare(pos, token.length(), token) == 0) {
+                return true;
             }
-            double right = std::stod(valStr);
-            if (op == "==") return left == right;
-            if (op == "!=") return left != right;
-            if (op == ">=") return left >= right;
-            if (op == "<=") return left <= right;
-            if (op == ">") return left > right;
-            if (op == "<") return left < right;
-        }
-        else if (context.Get<bool>(key).has_value()) {
-            bool left = context.Get<bool>(key).value();
-            bool right = (valStr == "true" || valStr == "1");
-            if (op == "==") return left == right;
-            if (op == "!=") return left != right;
-        }
-        else if (context.Get<std::string>(key).has_value()) {
-            std::string left = context.Get<std::string>(key).value();
-            if (op == " IN " || op == " in ") {
-                std::vector<std::string> items = splitAndTrim(valStr, ',');
-                for (auto& item : items) {
-                    if (item.front() == '"' && item.back() == '"') {
-                        item = item.substr(1, item.length() - 2);
-                    }
-                    if (left == item) return true;
-                }
-                return false;
-            }
-            std::string right = valStr;
-            if (right.front() == '"' && right.back() == '"') {
-                right = right.substr(1, right.length() - 2);
-            }
-            if (op == "==") return left == right;
-            if (op == "!=") return left != right;
+            return false;
         }
 
-        return false;
+    public:
+        explicit ConditionParser(std::string expression) : expr(std::move(expression)) {}
+
+        bool ParseAndEvaluate(const PricingContext& context) {
+            if (expr.empty()) return true;
+            pos = 0;
+            bool result = ParseOr(context);
+            SkipWhitespace();
+            return result;
+        }
+
+    private:
+        bool ParseOr(const PricingContext& context) {
+            bool result = ParseAnd(context);
+            while (true) {
+                if (Match("||")) {
+                    bool right = ParseAnd(context);
+                    result = result || right;
+                } else {
+                    break;
+                }
+            }
+            return result;
+        }
+
+        bool ParseAnd(const PricingContext& context) {
+            bool result = ParsePrimary(context);
+            while (true) {
+                if (Match("&&")) {
+                    bool right = ParsePrimary(context);
+                    result = result && right;
+                } else {
+                    break;
+                }
+            }
+            return result;
+        }
+
+        bool ParsePrimary(const PricingContext& context) {
+            SkipWhitespace();
+            if (Match("(")) {
+                bool result = ParseOr(context);
+                Match(")"); // Consume closing parenthesis
+                return result;
+            }
+
+            size_t start = pos;
+            int parenCount = 0;
+            while (pos < expr.length()) {
+                if (expr[pos] == '(') {
+                    parenCount++;
+                } else if (expr[pos] == ')') {
+                    if (parenCount == 0) break;
+                    parenCount--;
+                } else if (parenCount == 0 && (Peek("&&") || Peek("||"))) {
+                    break;
+                }
+                pos++;
+            }
+            std::string sub = expr.substr(start, pos - start);
+            return EvaluateLeafCondition(context, sub);
+        }
+
+        bool EvaluateLeafCondition(const PricingContext& context, std::string conditionExpr) {
+            auto trim = [](std::string& s) {
+                s.erase(0, s.find_first_not_of(" \t\r\n"));
+                s.erase(s.find_last_not_of(" \t\r\n") + 1);
+            };
+            trim(conditionExpr);
+
+            if (conditionExpr.empty()) {
+                return true;
+            }
+
+            std::string op = "";
+            size_t opPos = std::string::npos;
+            std::string operators[] = { "==", "!=", ">=", "<=", ">", "<", " IN ", " in " };
+            for (const auto& possibleOp : operators) {
+                opPos = conditionExpr.find(possibleOp);
+                if (opPos != std::string::npos) {
+                    op = possibleOp;
+                    break;
+                }
+            }
+
+            if (op.empty()) {
+                return context.Get<bool>(conditionExpr).value_or(false);
+            }
+
+            std::string key = conditionExpr.substr(0, opPos);
+            std::string valStr = conditionExpr.substr(opPos + op.length());
+
+            trim(key);
+            trim(valStr);
+
+            auto splitAndTrim = [&trim](const std::string& s, char delim) {
+                std::vector<std::string> elems;
+                size_t start = 0;
+                size_t end = s.find(delim);
+                while (end != std::string::npos) {
+                    std::string token = s.substr(start, end - start);
+                    trim(token);
+                    elems.push_back(token);
+                    start = end + 1;
+                    end = s.find(delim, start);
+                }
+                std::string token = s.substr(start);
+                trim(token);
+                elems.push_back(token);
+                return elems;
+            };
+
+            if (!context.Has(key)) {
+                return false;
+            }
+
+            if (context.Get<double>(key).has_value()) {
+                double left = context.Get<double>(key).value();
+                if (op == " IN " || op == " in ") {
+                    std::vector<std::string> items = splitAndTrim(valStr, ',');
+                    for (const auto& item : items) {
+                        try {
+                            if (left == std::stod(item)) return true;
+                        } catch (...) {}
+                    }
+                    return false;
+                }
+                double right = std::stod(valStr);
+                if (op == "==") return left == right;
+                if (op == "!=") return left != right;
+                if (op == ">=") return left >= right;
+                if (op == "<=") return left <= right;
+                if (op == ">") return left > right;
+                if (op == "<") return left < right;
+            }
+            else if (context.Get<bool>(key).has_value()) {
+                bool left = context.Get<bool>(key).value();
+                bool right = (valStr == "true" || valStr == "1");
+                if (op == "==") return left == right;
+                if (op == "!=") return left != right;
+            }
+            else if (context.Get<std::string>(key).has_value()) {
+                std::string left = context.Get<std::string>(key).value();
+                if (op == " IN " || op == " in ") {
+                    std::vector<std::string> items = splitAndTrim(valStr, ',');
+                    for (auto& item : items) {
+                        if (item.front() == '"' && item.back() == '"') {
+                            item = item.substr(1, item.length() - 2);
+                        }
+                        if (left == item) return true;
+                    }
+                    return false;
+                }
+                std::string right = valStr;
+                if (right.front() == '"' && right.back() == '"') {
+                    right = right.substr(1, right.length() - 2);
+                }
+                if (op == "==") return left == right;
+                if (op == "!=") return left != right;
+            }
+
+            return false;
+        }
+    };
+
+    // Evaluates simple or compound expressions (e.g. "(quantity >= 50 && is_partner == true) || region == EU") on the PricingContext
+    inline bool EvaluateCondition(const PricingContext& context, const std::string& conditionExpr) {
+        ConditionParser parser(conditionExpr);
+        return parser.ParseAndEvaluate(context);
     }
 
     // Audit record detailing modifications made by a rule

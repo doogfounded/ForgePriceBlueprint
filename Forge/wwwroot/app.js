@@ -730,77 +730,167 @@ function renderContextInputs() {
 }
 
 // 6. Pricing Simulator Engine (JS Implementation)
-function evaluateCondition(expr, context) {
-    if (!expr || expr.trim() === '') return true;
+class ConditionParser {
+    constructor(expr) {
+        this.expr = expr;
+        this.pos = 0;
+    }
 
-    // Simple expressions parsing (e.g., "quantity < 10", "region != US", "is_partner")
-    const operators = ["==", "!=", ">=", "<=", ">", "<", " IN ", " in "];
-    let op = null;
-    let opPos = -1;
-
-    for (const possibleOp of operators) {
-        opPos = expr.indexOf(possibleOp);
-        if (opPos !== -1) {
-            op = possibleOp;
-            break;
+    skipWhitespace() {
+        while (this.pos < this.expr.length && /\s/.test(this.expr[this.pos])) {
+            this.pos++;
         }
     }
 
-    if (!op) {
-        // Boolean check e.g. "is_partner"
-        const key = expr.trim();
-        return !!context[key];
-    }
-
-    let key = expr.substring(0, opPos).trim();
-    let valStr = expr.substring(opPos + op.length).trim();
-
-    if (context[key] === undefined) {
+    match(token) {
+        this.skipWhitespace();
+        if (this.pos + token.length <= this.expr.length && this.expr.substring(this.pos, this.pos + token.length) === token) {
+            this.pos += token.length;
+            return true;
+        }
         return false;
     }
 
-    let left = context[key];
-    
-    // Type match comparison
-    if (typeof left === 'number') {
-        if (op === " IN " || op === " in ") {
-            const items = valStr.split(',').map(s => parseFloat(s.trim()));
-            return items.includes(left);
+    peek(token) {
+        this.skipWhitespace();
+        if (this.pos + token.length <= this.expr.length && this.expr.substring(this.pos, this.pos + token.length) === token) {
+            return true;
         }
-        let right = parseFloat(valStr);
-        if (isNaN(right)) return false;
-        if (op === "==") return left === right;
-        if (op === "!=") return left != right;
-        if (op === ">=") return left >= right;
-        if (op === "<=") return left <= right;
-        if (op === ">") return left > right;
-        if (op === "<") return left < right;
-    }
-    else if (typeof left === 'boolean') {
-        let right = (valStr === "true" || valStr === "1");
-        if (op === "==") return left === right;
-        if (op === "!=") return left != right;
-    }
-    else if (typeof left === 'string') {
-        if (op === " IN " || op === " in ") {
-            const items = valStr.split(',').map(s => {
-                let sTrim = s.trim();
-                if (sTrim.startsWith('"') && sTrim.endsWith('"')) {
-                    sTrim = sTrim.substring(1, sTrim.length - 1);
-                }
-                return sTrim;
-            });
-            return items.includes(left);
-        }
-        let right = valStr;
-        if (right.startsWith('"') && right.endsWith('"')) {
-            right = right.substring(1, right.length - 1);
-        }
-        if (op === "==") return left === right;
-        if (op === "!=") return left != right;
+        return false;
     }
 
-    return false;
+    parseAndEvaluate(context) {
+        if (!this.expr || this.expr.trim() === '') return true;
+        this.pos = 0;
+        const result = this.parseOr(context);
+        this.skipWhitespace();
+        return result;
+    }
+
+    parseOr(context) {
+        let result = this.parseAnd(context);
+        while (true) {
+            if (this.match("||")) {
+                let right = this.parseAnd(context);
+                result = result || right;
+            } else {
+                break;
+            }
+        }
+        return result;
+    }
+
+    parseAnd(context) {
+        let result = this.parsePrimary(context);
+        while (true) {
+            if (this.match("&&")) {
+                let right = this.parsePrimary(context);
+                result = result && right;
+            } else {
+                break;
+            }
+        }
+        return result;
+    }
+
+    parsePrimary(context) {
+        this.skipWhitespace();
+        if (this.match("(")) {
+            const result = this.parseOr(context);
+            this.match(")"); // Consume closing parenthesis
+            return result;
+        }
+
+        const start = this.pos;
+        let parenCount = 0;
+        while (this.pos < this.expr.length) {
+            if (this.expr[this.pos] === '(') {
+                parenCount++;
+            } else if (this.expr[this.pos] === ')') {
+                if (parenCount === 0) break;
+                parenCount--;
+            } else if (parenCount === 0 && (this.peek("&&") || this.peek("||"))) {
+                break;
+            }
+            this.pos++;
+        }
+        const sub = this.expr.substring(start, this.pos).trim();
+        return this.evaluateLeafCondition(sub, context);
+    }
+
+    evaluateLeafCondition(expr, context) {
+        if (!expr || expr.trim() === '') return true;
+        const operators = ["==", "!=", ">=", "<=", ">", "<", " IN ", " in "];
+        let op = null;
+        let opPos = -1;
+
+        for (const possibleOp of operators) {
+            opPos = expr.indexOf(possibleOp);
+            if (opPos !== -1) {
+                op = possibleOp;
+                break;
+            }
+        }
+
+        if (!op) {
+            const key = expr.trim();
+            return !!context[key];
+        }
+
+        let key = expr.substring(0, opPos).trim();
+        let valStr = expr.substring(opPos + op.length).trim();
+
+        if (context[key] === undefined) {
+            return false;
+        }
+
+        let left = context[key];
+        
+        if (typeof left === 'number') {
+            if (op === " IN " || op === " in ") {
+                const items = valStr.split(',').map(s => parseFloat(s.trim()));
+                return items.includes(left);
+            }
+            let right = parseFloat(valStr);
+            if (isNaN(right)) return false;
+            if (op === "==") return left === right;
+            if (op === "!=") return left != right;
+            if (op === ">=") return left >= right;
+            if (op === "<=") return left <= right;
+            if (op === ">") return left > right;
+            if (op === "<") return left < right;
+        }
+        else if (typeof left === 'boolean') {
+            let right = (valStr === "true" || valStr === "1");
+            if (op === "==") return left === right;
+            if (op === "!=") return left != right;
+        }
+        else if (typeof left === 'string') {
+            if (op === " IN " || op === " in ") {
+                const items = valStr.split(',').map(s => {
+                    let sTrim = s.trim();
+                    if (sTrim.startsWith('"') && sTrim.endsWith('"')) {
+                        sTrim = sTrim.substring(1, sTrim.length - 1);
+                    }
+                    return sTrim;
+                });
+                return items.includes(left);
+            }
+            let right = valStr;
+            if (right.startsWith('"') && right.endsWith('"')) {
+                right = right.substring(1, right.length - 1);
+            }
+            if (op === "==") return left === right;
+            if (op === "!=") return left != right;
+        }
+
+        return false;
+    }
+}
+
+function evaluateCondition(expr, context) {
+    const parser = new ConditionParser(expr);
+    return parser.parseAndEvaluate(context);
 }
 
 function runSimulator() {
