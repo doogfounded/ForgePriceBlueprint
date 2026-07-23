@@ -1,0 +1,301 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Forge Price Blueprint Studio API",
+    "description": "REST API specification for the Forge Pricing Operating System simulator and validation engine.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:5000",
+      "description": "Default local development host"
+    }
+  ],
+  "paths": {
+    "/api/blueprint": {
+      "get": {
+        "summary": "Load Active Blueprint",
+        "description": "Retrieves the pricing blueprint configuration file currently stored on the disk.",
+        "responses": {
+          "200": {
+            "description": "The active blueprint specification JSON.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Blueprint"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Blueprint file not found on disk."
+          }
+        }
+      },
+      "post": {
+        "summary": "Save Blueprint",
+        "description": "Saves a new blueprint configuration file to disk after verifying it complies with structural and type schemas.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Blueprint"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Blueprint saved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "success" },
+                    "message": { "type": "string", "example": "Blueprint saved successfully." }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid JSON or schema validation failure.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/simulate": {
+      "post": {
+        "summary": "Run Scenarios Simulation",
+        "description": "Simulates a series of customer contexts/orders against the active blueprint on disk and returns detailed calculations and audit trails.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ScenarioInput"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Simulation completed successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ScenarioResult"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Malformed JSON request payload."
+          },
+          "500": {
+            "description": "Simulation execution failed."
+          }
+        }
+      }
+    },
+    "/api/validate": {
+      "post": {
+        "summary": "Validate and Scan Blueprint",
+        "description": "Parses a blueprint specification, verifies structural rules, and automatically runs a dynamic scenario grid check to detect commercial logic anomalies (e.g., negative prices, extreme discounts, volume inversions).",
+        "requestBody": {
+          "description": "Optional custom blueprint specification body. If empty, the server validates the active blueprint file on disk.",
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Blueprint"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Validation completed successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid JSON format or structural schema check failed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Blueprint": {
+        "type": "object",
+        "required": ["Version", "BlueprintName", "Rules"],
+        "properties": {
+          "Version": {
+            "type": "string",
+            "example": "1.0.0"
+          },
+          "BlueprintName": {
+            "type": "string",
+            "example": "Enterprise Custom Contract"
+          },
+          "Rules": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["Type", "Name"],
+              "properties": {
+                "Type": {
+                  "type": "string",
+                  "enum": ["BasePrice", "PercentageAdjustment", "FlatAdjustment", "PriceCap", "TieredPricing", "Rounding"],
+                  "example": "BasePrice"
+                },
+                "Name": {
+                  "type": "string",
+                  "example": "Base Rate"
+                },
+                "Enabled": {
+                  "type": "boolean",
+                  "default": true
+                }
+              }
+            }
+          }
+        }
+      },
+      "ValidationError": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string", "example": "Validation failed" },
+          "details": {
+            "type": "array",
+            "items": { "type": "string" },
+            "example": [
+              "Rule #2 (PercentageAdjustment) 'Partner Discount': missing required number property 'Factor'."
+            ]
+          }
+        }
+      },
+      "ScenarioInput": {
+        "type": "object",
+        "required": ["scenario_name", "context"],
+        "properties": {
+          "scenario_name": {
+            "type": "string",
+            "example": "Scenario A: Regular Small Order"
+          },
+          "context": {
+            "type": "object",
+            "additionalProperties": true,
+            "example": {
+              "base_price": 150.0,
+              "quantity": 5.0,
+              "region": "US",
+              "is_partner": false
+            }
+          }
+        }
+      },
+      "ScenarioResult": {
+        "type": "object",
+        "properties": {
+          "scenarioName": {
+            "type": "string",
+            "example": "Scenario A: Regular Small Order"
+          },
+          "basePrice": {
+            "type": "number",
+            "example": 150.0
+          },
+          "finalPrice": {
+            "type": "number",
+            "example": 165.0
+          },
+          "auditTrail": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AuditRecord"
+            }
+          }
+        }
+      },
+      "AuditRecord": {
+        "type": "object",
+        "properties": {
+          "ruleName": {
+            "type": "string",
+            "example": "Shipping & Handling Surcharge"
+          },
+          "description": {
+            "type": "string",
+            "example": "Flat rate standard shipping fee for small orders"
+          },
+          "inputPrice": {
+            "type": "number",
+            "example": 150.0
+          },
+          "outputPrice": {
+            "type": "number",
+            "example": 165.0
+          },
+          "adjustment": {
+            "type": "number",
+            "example": 15.0
+          }
+        }
+      },
+      "ValidationReport": {
+        "type": "object",
+        "properties": {
+          "valid": {
+            "type": "boolean",
+            "example": true
+          },
+          "scenariosTested": {
+            "type": "integer",
+            "example": 72
+          },
+          "anomalies": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "type": { "type": "string", "enum": ["Warning", "Error"], "example": "Warning" },
+                "rule": { "type": "string", "example": "Extreme Discount" },
+                "message": { "type": "string", "example": "Extreme discount: Final price $20 is only 13% of base price ($150) in scenario BP_150_Qty_100_Reg_US_VipPartner" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
