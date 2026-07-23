@@ -1494,14 +1494,125 @@ function onVisualChange(reRenderDesigner = true) {
     setValid(true, "Specification synced & validated successfully.");
 }
 
+function validateBlueprintSchema(parsed) {
+    const errors = [];
+    if (typeof parsed !== 'object' || parsed === null) {
+        errors.push("Blueprint must be a JSON object.");
+        return errors;
+    }
+
+    if (!parsed.BlueprintName || typeof parsed.BlueprintName !== 'string' || parsed.BlueprintName.trim() === '') {
+        errors.push("Blueprint must contain a non-empty string 'BlueprintName'.");
+    }
+
+    if (!parsed.Version || typeof parsed.Version !== 'string') {
+        errors.push("Blueprint must contain a string 'Version'.");
+    }
+
+    if (!parsed.Rules || !Array.isArray(parsed.Rules)) {
+        errors.push("Blueprint must contain an array 'Rules'.");
+        return errors;
+    }
+
+    parsed.Rules.forEach((rule, idx) => {
+        const index = idx + 1;
+        if (typeof rule !== 'object' || rule === null) {
+            errors.push(`Rule #${index} must be an object.`);
+            return;
+        }
+
+        if (!rule.Type || typeof rule.Type !== 'string') {
+            errors.push(`Rule #${index}: missing required string 'Type'.`);
+            return;
+        }
+
+        if (!rule.Name || typeof rule.Name !== 'string' || rule.Name.trim() === '') {
+            errors.push(`Rule #${index}: missing required string 'Name'.`);
+        }
+
+        const type = rule.Type;
+        if (type === "BasePrice") {
+            if (rule.DefaultPrice === undefined || typeof rule.DefaultPrice !== 'number') {
+                errors.push(`Rule #${index} (BasePrice) '${rule.Name || ''}': missing required number 'DefaultPrice'.`);
+            }
+        }
+        else if (type === "PercentageAdjustment") {
+            if (rule.Factor === undefined || typeof rule.Factor !== 'number') {
+                errors.push(`Rule #${index} (PercentageAdjustment) '${rule.Name || ''}': missing required number 'Factor'.`);
+            }
+            if (!rule.ConditionKey || typeof rule.ConditionKey !== 'string' || rule.ConditionKey.trim() === '') {
+                errors.push(`Rule #${index} (PercentageAdjustment) '${rule.Name || ''}': missing required string 'ConditionKey'.`);
+            }
+        }
+        else if (type === "FlatAdjustment") {
+            if (rule.Amount === undefined || typeof rule.Amount !== 'number') {
+                errors.push(`Rule #${index} (FlatAdjustment) '${rule.Name || ''}': missing required number 'Amount'.`);
+            }
+            if (!rule.ConditionKey || typeof rule.ConditionKey !== 'string' || rule.ConditionKey.trim() === '') {
+                errors.push(`Rule #${index} (FlatAdjustment) '${rule.Name || ''}': missing required string 'ConditionKey'.`);
+            }
+        }
+        else if (type === "PriceCap") {
+            const hasMin = rule.MinPrice !== undefined && rule.MinPrice !== null;
+            const hasMax = rule.MaxPrice !== undefined && rule.MaxPrice !== null;
+            if (!hasMin && !hasMax) {
+                errors.push(`Rule #${index} (PriceCap) '${rule.Name || ''}': must specify at least one of 'MinPrice' or 'MaxPrice'.`);
+            }
+            if (hasMin && typeof rule.MinPrice !== 'number') {
+                errors.push(`Rule #${index} (PriceCap) '${rule.Name || ''}': 'MinPrice' must be a number.`);
+            }
+            if (hasMax && typeof rule.MaxPrice !== 'number') {
+                errors.push(`Rule #${index} (PriceCap) '${rule.Name || ''}': 'MaxPrice' must be a number.`);
+            }
+        }
+        else if (type === "TieredPricing") {
+            if (!rule.QuantityKey || typeof rule.QuantityKey !== 'string' || rule.QuantityKey.trim() === '') {
+                errors.push(`Rule #${index} (TieredPricing) '${rule.Name || ''}': missing required string 'QuantityKey'.`);
+            }
+            if (!rule.Tiers || !Array.isArray(rule.Tiers) || rule.Tiers.length === 0) {
+                errors.push(`Rule #${index} (TieredPricing) '${rule.Name || ''}': missing required non-empty array 'Tiers'.`);
+            } else {
+                rule.Tiers.forEach((tier, tIdx) => {
+                    const tIndex = tIdx + 1;
+                    if (typeof tier !== 'object' || tier === null) {
+                        errors.push(`Rule #${index} (TieredPricing) '${rule.Name || ''}', Tier #{tIndex}: tier must be an object.`);
+                        return;
+                    }
+                    if (tier.MinQuantity === undefined || typeof tier.MinQuantity !== 'number') {
+                        errors.push(`Rule #${index} (TieredPricing) '${rule.Name || ''}', Tier #{tIndex}: missing required number 'MinQuantity'.`);
+                    }
+                    if (tier.DiscountPercentage === undefined || typeof tier.DiscountPercentage !== 'number') {
+                        errors.push(`Rule #${index} (TieredPricing) '${rule.Name || ''}', Tier #{tIndex}: missing required number 'DiscountPercentage'.`);
+                    }
+                });
+            }
+        }
+        else if (type === "Rounding") {
+            if (!rule.RoundingMode || typeof rule.RoundingMode !== 'string') {
+                errors.push(`Rule #${index} (Rounding) '${rule.Name || ''}': missing required string 'RoundingMode'.`);
+            } else {
+                const validModes = ["NearestDollar", "EndsIn99", "EndsIn95", "NearestNickel", "NearestDime"];
+                if (!validModes.includes(rule.RoundingMode)) {
+                    errors.push(`Rule #${index} (Rounding) '${rule.Name || ''}': 'RoundingMode' must be one of: ${validModes.join(', ')}`);
+                }
+            }
+        }
+        else {
+            errors.push(`Rule #${index}: unknown rule type '${type}'.`);
+        }
+    });
+
+    return errors;
+}
+
 function onJSONEditorInput() {
     const rawVal = jsonEditor.value;
     try {
         const parsed = JSON.parse(rawVal);
         
-        // Quick structural check
-        if (!parsed.BlueprintName || !Array.isArray(parsed.Rules)) {
-            throw new Error("Must contain a 'BlueprintName' (string) and 'Rules' (array).");
+        const valErrors = validateBlueprintSchema(parsed);
+        if (valErrors.length > 0) {
+            throw new Error(valErrors.join(" | "));
         }
         
         blueprintState = parsed;
@@ -1534,8 +1645,9 @@ function onYAMLEditorInput() {
         }
         
         const parsed = jsyaml.load(rawVal);
-        if (!parsed || !parsed.BlueprintName || !Array.isArray(parsed.Rules)) {
-            throw new Error("Must contain a 'BlueprintName' (string) and 'Rules' (array).");
+        const valErrors = validateBlueprintSchema(parsed);
+        if (valErrors.length > 0) {
+            throw new Error(valErrors.join(" | "));
         }
         
         blueprintState = parsed;
@@ -1579,16 +1691,16 @@ function loadBlueprintFromDisk() {
             return res.json();
         })
         .then(data => {
-            if (data.BlueprintName && Array.isArray(data.Rules)) {
-                blueprintState = data;
-                collapsedRules.clear();
-                onVisualChange();
-                renderContextInputs();
-                runSimulator();
-                setValid(true, "Specification loaded and validated successfully.");
-            } else {
-                throw new Error("Invalid blueprint format returned from API.");
+            const valErrors = validateBlueprintSchema(data);
+            if (valErrors.length > 0) {
+                throw new Error("Schema validation failed: " + valErrors.join(" | "));
             }
+            blueprintState = data;
+            collapsedRules.clear();
+            onVisualChange();
+            renderContextInputs();
+            runSimulator();
+            setValid(true, "Specification loaded and validated successfully.");
         })
         .catch(err => {
             console.warn("Could not load from API, using default embedded template.", err);
@@ -1616,8 +1728,8 @@ function loadBlueprintFromDisk() {
             blueprintState.Rules[3].Description = "Flat rate standard shipping fee for small orders";
             blueprintState.Rules[4].Name = "International Tax Surcharge";
             blueprintState.Rules[4].Factor = 1.15;
-            blueprintState.Rules[4].ConditionKey = "region != US";
-            blueprintState.Rules[4].Description = "International regional sales tax of 15%";
+            blueprintState.Rules[4].ConditionKey = "region != US && quantity >= 10";
+            blueprintState.Rules[4].Description = "International regional sales tax of 15% for orders of 10 or more units";
             
             onVisualChange();
             renderContextInputs();

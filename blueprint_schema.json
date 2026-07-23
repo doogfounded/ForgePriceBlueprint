@@ -1,0 +1,235 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ForgePriceBlueprint Specification Schema",
+  "description": "JSON Schema for validating Forge Price Blueprints",
+  "type": "object",
+  "required": [
+    "Version",
+    "BlueprintName",
+    "Rules"
+  ],
+  "properties": {
+    "Version": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+    },
+    "BlueprintName": {
+      "type": "string",
+      "minLength": 1
+    },
+    "Rules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "Type",
+          "Name"
+        ],
+        "properties": {
+          "Type": {
+            "type": "string",
+            "enum": [
+              "BasePrice",
+              "PercentageAdjustment",
+              "FlatAdjustment",
+              "PriceCap",
+              "TieredPricing",
+              "Rounding"
+            ]
+          },
+          "Name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "Enabled": {
+            "type": "boolean"
+          }
+        },
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "Type": {
+                  "const": "BasePrice"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "DefaultPrice"
+              ],
+              "properties": {
+                "DefaultPrice": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "ContextKey": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "Type": {
+                  "const": "PercentageAdjustment"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "Factor",
+                "ConditionKey"
+              ],
+              "properties": {
+                "Factor": {
+                  "type": "number"
+                },
+                "ConditionKey": {
+                  "type": "string"
+                },
+                "Description": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "Type": {
+                  "const": "FlatAdjustment"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "Amount",
+                "ConditionKey"
+              ],
+              "properties": {
+                "Amount": {
+                  "type": "number"
+                },
+                "ConditionKey": {
+                  "type": "string"
+                },
+                "Description": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "Type": {
+                  "const": "PriceCap"
+                }
+              }
+            },
+            "then": {
+              "anyOf": [
+                {
+                  "required": [
+                    "MinPrice"
+                  ]
+                },
+                {
+                  "required": [
+                    "MaxPrice"
+                  ]
+                }
+              ],
+              "properties": {
+                "MinPrice": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "MaxPrice": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "Type": {
+                  "const": "TieredPricing"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "QuantityKey",
+                "Tiers"
+              ],
+              "properties": {
+                "QuantityKey": {
+                  "type": "string"
+                },
+                "Graduated": {
+                  "type": "boolean"
+                },
+                "Tiers": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "MinQuantity",
+                      "DiscountPercentage"
+                    ],
+                    "properties": {
+                      "MinQuantity": {
+                        "type": "number",
+                        "minimum": 0
+                      },
+                      "DiscountPercentage": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "Type": {
+                  "const": "Rounding"
+                }
+              }
+            },
+            "then": {
+              "required": [
+                "RoundingMode"
+              ],
+              "properties": {
+                "RoundingMode": {
+                  "type": "string",
+                  "enum": [
+                    "NearestDollar",
+                    "EndsIn99",
+                    "EndsIn95",
+                    "NearestNickel",
+                    "NearestDime"
+                  ]
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
