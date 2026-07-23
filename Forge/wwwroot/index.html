@@ -29,6 +29,12 @@
                 <span class="status-dot"></span>
                 <span class="status-text">Connected to Local Engine</span>
             </div>
+            <button id="btn-import-blueprint" class="btn btn-secondary" title="Import Blueprint from JSON/YAML file">
+                Import
+            </button>
+            <button id="btn-export-blueprint" class="btn btn-secondary" title="Export Blueprint to JSON file">
+                Export
+            </button>
             <button id="btn-save" class="btn btn-primary" title="Save changes directly to enterprise_blueprint.json">
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
@@ -160,9 +166,17 @@
             <div class="glass-card matrix-panel">
                 <div class="matrix-header">
                     <h3>What-If Scenario Matrix</h3>
-                    <button id="btn-add-scenario" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; height: auto;" title="Save current simulator inputs as a comparison scenario">
-                        + Save Current Scenario
-                    </button>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button id="btn-add-scenario" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; height: auto;" title="Save current simulator inputs as a comparison scenario">
+                            + Save Current Scenario
+                        </button>
+                        <button id="btn-import-scenarios" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; height: auto;" title="Import Scenarios from JSON file">
+                            Import
+                        </button>
+                        <button id="btn-export-scenarios" class="btn btn-secondary" style="font-size: 0.75rem; padding: 0.25rem 0.5rem; height: auto;" title="Export Scenarios to JSON file">
+                            Export
+                        </button>
+                    </div>
                 </div>
                 <div class="matrix-table-wrapper">
                     <table class="matrix-table">

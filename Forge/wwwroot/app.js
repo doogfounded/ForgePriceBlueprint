@@ -310,6 +310,26 @@ function initEvents() {
     // Save Button
     btnSave.addEventListener('click', saveBlueprintToDisk);
 
+    // Blueprint Import/Export
+    const btnImportBlueprint = document.getElementById('btn-import-blueprint');
+    if (btnImportBlueprint) {
+        btnImportBlueprint.addEventListener('click', importBlueprint);
+    }
+    const btnExportBlueprint = document.getElementById('btn-export-blueprint');
+    if (btnExportBlueprint) {
+        btnExportBlueprint.addEventListener('click', exportBlueprint);
+    }
+
+    // Scenarios Import/Export
+    const btnImportScenarios = document.getElementById('btn-import-scenarios');
+    if (btnImportScenarios) {
+        btnImportScenarios.addEventListener('click', importScenarios);
+    }
+    const btnExportScenarios = document.getElementById('btn-export-scenarios');
+    if (btnExportScenarios) {
+        btnExportScenarios.addEventListener('click', exportScenarios);
+    }
+
     // Code editors keyup / change
     jsonEditor.addEventListener('input', onJSONEditorInput);
     yamlEditor.addEventListener('input', onYAMLEditorInput);
@@ -1546,4 +1566,108 @@ function deleteScenario(event, idx) {
     event.stopPropagation();
     savedScenarios.splice(idx, 1);
     renderScenarioMatrix();
+}
+
+function exportBlueprint() {
+    const jsonStr = JSON.stringify(blueprintState, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (blueprintState.BlueprintName || "blueprint").toLowerCase().replace(/\s+/g, "_") + "_blueprint.json";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function importBlueprint() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json,.yaml,.yml';
+    
+    input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                let parsed;
+                const extension = file.name.split('.').pop().toLowerCase();
+                
+                if (extension === 'yaml' || extension === 'yml') {
+                    if (!window.jsyaml) throw new Error("YAML parser library not loaded.");
+                    parsed = jsyaml.load(event.target.result);
+                } else {
+                    parsed = JSON.parse(event.target.result);
+                }
+
+                const valErrors = validateBlueprintSchema(parsed);
+                if (valErrors.length > 0) {
+                    throw new Error("Schema validation failed: " + valErrors.join(" | "));
+                }
+
+                blueprintState = parsed;
+                collapsedRules.clear();
+                onVisualChange();
+                renderContextInputs();
+                runSimulator();
+                setValid(true, "Blueprint file imported successfully.");
+            } catch (err) {
+                alert("Import failed: " + err.message);
+                setValid(false, "Import failed: " + err.message);
+            }
+        };
+        reader.readAsText(file);
+    };
+    input.click();
+}
+
+function exportScenarios() {
+    const jsonStr = JSON.stringify(savedScenarios, null, 2);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (blueprintState.BlueprintName || "scenarios").toLowerCase().replace(/\s+/g, "_") + "_scenarios.json";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function importScenarios() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    
+    input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                const parsed = JSON.parse(event.target.result);
+                if (!Array.isArray(parsed)) {
+                    throw new Error("Scenarios file must be a JSON array of scenario objects.");
+                }
+                
+                parsed.forEach((sc, sIdx) => {
+                    if (!sc.name || !sc.variables) {
+                        throw new Error(`Scenario #${sIdx + 1} is missing required 'name' or 'variables' properties.`);
+                    }
+                });
+
+                savedScenarios = parsed;
+                renderScenarioMatrix();
+                alert("Imported " + parsed.length + " scenarios successfully.");
+            } catch (err) {
+                alert("Scenarios import failed: " + err.message);
+            }
+        };
+        reader.readAsText(file);
+    };
+    input.click();
 }
