@@ -547,6 +547,8 @@ namespace Pricing {
         }
     };
 
+    void RegisterAddonRules();
+
     inline void RegisterStandardRules() {
         auto& reg = RuleRegistry::Instance();
         
@@ -600,6 +602,8 @@ namespace Pricing {
             std::string roundingMode = j.value("RoundingMode", "NearestDollar");
             return std::make_shared<RoundingRule>(name, roundingMode, enabled);
         });
+
+        RegisterAddonRules();
     }
 
     // The blueprint/specification template representing a structured pipeline of rules

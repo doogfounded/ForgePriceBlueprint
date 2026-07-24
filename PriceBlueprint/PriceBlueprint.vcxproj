@@ -51,6 +51,7 @@
 
   <ItemGroup>
     <ClCompile Include="src\main.cpp" />
+    <ClCompile Include="src\addons.cpp" />
   </ItemGroup>
 
   <ItemGroup>

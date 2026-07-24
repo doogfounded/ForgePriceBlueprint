@@ -30,8 +30,8 @@ endif
 
 # Build the C++ runtime (both the CLI executable and the shared dynamic library)
 build:
-	g++ -std=c++17 PriceBlueprint/src/main.cpp -IPriceBlueprint/include $(VCPKG_FLAGS) -o price_blueprint$(EXE_EXT)
-	g++ -shared -fPIC -std=c++17 PriceBlueprint/src/library.cpp -IPriceBlueprint/include $(VCPKG_FLAGS) -o price_blueprint.$(LIB_EXT)
+	g++ -std=c++17 PriceBlueprint/src/main.cpp PriceBlueprint/src/addons.cpp -IPriceBlueprint/include $(VCPKG_FLAGS) -o price_blueprint$(EXE_EXT)
+	g++ -shared -fPIC -std=c++17 PriceBlueprint/src/library.cpp PriceBlueprint/src/addons.cpp -IPriceBlueprint/include $(VCPKG_FLAGS) -o price_blueprint.$(LIB_EXT)
 
 # Generate then build then run
 run: generate build

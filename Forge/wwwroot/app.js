@@ -22,7 +22,7 @@ let collapsedRules = new Set();
 function saveCollapsedRules() {
     try {
         localStorage.setItem('forge_collapsed_rules', JSON.stringify(Array.from(collapsedRules)));
-    } catch(e) {}
+    } catch (e) { }
 }
 
 function loadCollapsedRules() {
@@ -31,7 +31,7 @@ function loadCollapsedRules() {
         if (saved) {
             collapsedRules = new Set(JSON.parse(saved));
         }
-    } catch(e) {}
+    } catch (e) { }
 }
 
 // Simulator context variables values
@@ -45,7 +45,7 @@ let contextValues = {
 function saveContextValues() {
     try {
         localStorage.setItem('forge_context_values', JSON.stringify(contextValues));
-    } catch(e) {}
+    } catch (e) { }
 }
 
 function loadContextValues() {
@@ -54,7 +54,7 @@ function loadContextValues() {
         if (saved) {
             contextValues = JSON.parse(saved);
         }
-    } catch(e) {}
+    } catch (e) { }
 }
 
 // What-If Matrix saved scenarios
@@ -307,7 +307,7 @@ function initEvents() {
         if (PRESET_SCENARIOS[selected]) {
             blueprintState = JSON.parse(JSON.stringify(PRESET_SCENARIOS[selected]));
             collapsedRules.clear();
-            
+
             // Adjust context simulator inputs to match the preset variables naturally
             if (selected === 'saas') {
                 contextValues = {
@@ -330,7 +330,7 @@ function initEvents() {
                     region: "EU"
                 };
             }
-            
+
             onVisualChange();
             renderContextInputs();
             runSimulator();
@@ -381,13 +381,13 @@ function initEvents() {
         btn.addEventListener('click', () => {
             document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
             document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
-            
+
             btn.classList.add('active');
             const tabId = btn.getAttribute('data-tab');
             document.getElementById(tabId).classList.add('active');
             try {
                 localStorage.setItem('forge_active_tab', tabId);
-            } catch(e) {}
+            } catch (e) { }
         });
     });
 
@@ -397,7 +397,7 @@ function initEvents() {
             const targetId = btn.getAttribute('data-target');
             const targetEl = document.getElementById(targetId);
             const textToCopy = targetEl.value || targetEl.textContent;
-            
+
             navigator.clipboard.writeText(textToCopy).then(() => {
                 const originalText = btn.textContent;
                 btn.textContent = 'Copied!';
@@ -490,27 +490,27 @@ function renderVisualDesigner() {
             card.classList.add('disabled');
         }
         card.setAttribute('data-ruletype', rule.Type);
-        
+
         // Header
         const header = document.createElement('div');
         header.className = 'rule-header';
-        
+
         const titleArea = document.createElement('div');
         titleArea.className = 'rule-title-area';
-        
+
         const nameInput = document.createElement('input');
         nameInput.className = 'rule-name-input';
         nameInput.value = rule.Name || '';
         nameInput.placeholder = 'Rule Name...';
         nameInput.addEventListener('input', (e) => updateRuleField(idx, 'Name', e.target.value));
-        
+
         const typeBadge = document.createElement('span');
         typeBadge.className = 'rule-type-badge';
         typeBadge.textContent = rule.Type;
-        
+
         titleArea.appendChild(nameInput);
         titleArea.appendChild(typeBadge);
-        
+
         // Controls (Collapse, Up, Down, Delete)
         const controls = document.createElement('div');
         controls.className = 'rule-controls';
@@ -519,7 +519,7 @@ function renderVisualDesigner() {
 
         const btnCollapse = document.createElement('button');
         btnCollapse.className = 'btn-ctrl btn-collapse';
-        btnCollapse.innerHTML = isCollapsed 
+        btnCollapse.innerHTML = isCollapsed
             ? `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 5 15 12 9 19"/></svg>` // chevron right
             : `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>`; // chevron down
         btnCollapse.title = isCollapsed ? "Expand Rule" : "Collapse Rule";
@@ -532,27 +532,27 @@ function renderVisualDesigner() {
             saveCollapsedRules();
             renderVisualDesigner();
         });
-        
+
         const btnUp = document.createElement('button');
         btnUp.className = 'btn-ctrl';
         btnUp.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg>`;
         btnUp.title = "Move Up";
         btnUp.disabled = idx === 0;
         btnUp.addEventListener('click', () => moveRule(idx, -1));
-        
+
         const btnDown = document.createElement('button');
         btnDown.className = 'btn-ctrl';
         btnDown.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>`;
         btnDown.title = "Move Down";
         btnDown.disabled = idx === blueprintState.Rules.length - 1;
         btnDown.addEventListener('click', () => moveRule(idx, 1));
-        
+
         const btnDel = document.createElement('button');
         btnDel.className = 'btn-ctrl btn-delete';
         btnDel.innerHTML = `<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>`;
         btnDel.title = "Delete Rule";
         btnDel.addEventListener('click', () => deleteRule(idx));
-        
+
         const btnToggle = document.createElement('button');
         btnToggle.className = 'btn-ctrl btn-toggle-rule';
         const isRuleEnabled = rule.Enabled !== false;
@@ -565,13 +565,13 @@ function renderVisualDesigner() {
             rule.Enabled = !isRuleEnabled;
             onVisualChange();
         });
-        
+
         controls.appendChild(btnToggle);
         controls.appendChild(btnCollapse);
         controls.appendChild(btnUp);
         controls.appendChild(btnDown);
         controls.appendChild(btnDel);
-        
+
         header.appendChild(titleArea);
         header.appendChild(controls);
         card.appendChild(header);
@@ -583,7 +583,7 @@ function renderVisualDesigner() {
             card.classList.add('collapsed');
             body.classList.add('hidden');
         }
-        
+
         if (rule.Type === 'BasePrice') {
             body.innerHTML = `
                 <div class="field-group">
@@ -643,7 +643,7 @@ function renderVisualDesigner() {
         else if (rule.Type === 'TieredPricing') {
             const tiersEditor = document.createElement('div');
             tiersEditor.className = 'tiers-editor';
-            
+
             let tiersHtml = `
                 <div class="tiers-editor-header">
                     <h4>Quantity Discount Tiers</h4>
@@ -670,7 +670,7 @@ function renderVisualDesigner() {
             });
 
             tiersHtml += `</div>`;
-            
+
             // Context quantity variable & Graduated toggle
             tiersHtml += `
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; width: 100%; margin-top: 0.5rem;">
@@ -796,7 +796,7 @@ function runSimulator() {
     // Update displays
     finalPriceDisplay.textContent = result.finalPrice.toFixed(2);
     statInitialPrice.textContent = `$${result.basePrice.toFixed(2)}`;
-    
+
     const netAdjustment = result.finalPrice - result.basePrice;
     statTotalAdjustment.textContent = (netAdjustment >= 0 ? '+' : '') + `$${netAdjustment.toFixed(2)}`;
     if (netAdjustment < 0) {
@@ -821,10 +821,10 @@ function runSimulator() {
 function simulatePriceForQty(qty, qKey) {
     const originalVal = contextValues[qKey];
     contextValues[qKey] = qty;
-    
+
     const engine = new PricingEngine(blueprintState);
     const result = engine.calculate(contextValues);
-    
+
     contextValues[qKey] = originalVal;
     return result.finalPrice;
 }
@@ -836,12 +836,12 @@ function drawPricingCurve() {
     const ctx = canvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
-    
+
     // Resize buffer if CSS dimensions changed
     canvas.width = rect.width * dpr;
     canvas.height = rect.height * dpr;
     ctx.scale(dpr, dpr);
-    
+
     const width = rect.width;
     const height = rect.height;
     ctx.clearRect(0, 0, width, height);
@@ -1005,7 +1005,7 @@ function drawPricingCurve() {
 
 function renderTrace(steps) {
     traceContainer.innerHTML = '';
-    
+
     if (steps.length === 0) {
         traceContainer.innerHTML = `<div style="text-align: center; color: var(--text-muted); font-size: 0.8rem; padding: 1rem;">No execution history yet.</div>`;
         return;
@@ -1129,12 +1129,12 @@ function onVisualChange(reRenderDesigner = true) {
     // Generate JSON and YAML strings
     const jsonStr = JSON.stringify(blueprintState, null, 2);
     jsonEditor.value = jsonStr;
-    
+
     try {
         if (window.jsyaml) {
             yamlEditor.value = jsyaml.dump(blueprintState, { indent: 2, lineWidth: -1 });
         }
-    } catch(e) {
+    } catch (e) {
         console.error("YAML serialization error", e);
     }
 
@@ -1262,28 +1262,28 @@ function onJSONEditorInput() {
     const rawVal = jsonEditor.value;
     try {
         const parsed = JSON.parse(rawVal);
-        
+
         const valErrors = validateBlueprintSchema(parsed);
         if (valErrors.length > 0) {
             throw new Error(valErrors.join(" | "));
         }
-        
+
         blueprintState = parsed;
         collapsedRules.clear();
         renderVisualDesigner();
-        
+
         // Generate YAML & APIs
         try {
             if (window.jsyaml) {
                 yamlEditor.value = jsyaml.dump(blueprintState, { indent: 2, lineWidth: -1 });
             }
-        } catch(e) {}
-        
+        } catch (e) { }
+
         generateCSharpCode();
         generateCppCode();
         renderContextInputs();
         runSimulator();
-        
+
         setValid(true, "JSON spec parsed & synced successfully.");
     } catch (e) {
         setValid(false, `JSON parsing error: ${e.message}`);
@@ -1296,25 +1296,25 @@ function onYAMLEditorInput() {
         if (!window.jsyaml) {
             throw new Error("YAML parser library not loaded.");
         }
-        
+
         const parsed = jsyaml.load(rawVal);
         const valErrors = validateBlueprintSchema(parsed);
         if (valErrors.length > 0) {
             throw new Error(valErrors.join(" | "));
         }
-        
+
         blueprintState = parsed;
         collapsedRules.clear();
         renderVisualDesigner();
-        
+
         // Generate JSON & APIs
         jsonEditor.value = JSON.stringify(blueprintState, null, 2);
-        
+
         generateCSharpCode();
         generateCppCode();
         renderContextInputs();
         runSimulator();
-        
+
         setValid(true, "YAML spec parsed & synced successfully.");
     } catch (e) {
         setValid(false, `YAML parsing error: ${e.message}`);
@@ -1383,11 +1383,11 @@ function loadBlueprintFromDisk() {
             blueprintState.Rules[4].Factor = 1.15;
             blueprintState.Rules[4].ConditionKey = "region != US && quantity >= 10";
             blueprintState.Rules[4].Description = "International regional sales tax of 15% for orders of 10 or more units";
-            
+
             onVisualChange();
             renderContextInputs();
             runSimulator();
-            
+
             const connectionStatus = document.getElementById('connection-status');
             connectionStatus.className = 'status-indicator';
             connectionStatus.querySelector('.status-text').textContent = 'Local Mode (Standalone)';
@@ -1397,12 +1397,12 @@ function loadBlueprintFromDisk() {
 
 function saveBlueprintToDisk() {
     setValid(true, "Saving changes to disk...");
-    
+
     // Validate JSON structure first
     let payload = null;
     try {
         payload = JSON.stringify(blueprintState);
-    } catch(e) {
+    } catch (e) {
         setValid(false, "Failed to serialize blueprint for saving.");
         return;
     }
@@ -1414,18 +1414,18 @@ function saveBlueprintToDisk() {
         },
         body: payload
     })
-    .then(res => {
-        if (!res.ok) return res.json().then(d => { throw new Error(d.error || "Save error"); });
-        return res.json();
-    })
-    .then(data => {
-        setValid(true, "Blueprint saved successfully.");
-        showToast();
-    })
-    .catch(err => {
-        setValid(false, `Failed to save: ${err.message}`);
-        alert("Failed to save changes. Make sure the local web server is running and writable.\n\nError: " + err.message);
-    });
+        .then(res => {
+            if (!res.ok) return res.json().then(d => { throw new Error(d.error || "Save error"); });
+            return res.json();
+        })
+        .then(data => {
+            setValid(true, "Blueprint saved successfully.");
+            showToast();
+        })
+        .catch(err => {
+            setValid(false, `Failed to save: ${err.message}`);
+            alert("Failed to save changes. Make sure the local web server is running and writable.\n\nError: " + err.message);
+        });
 }
 
 function showToast() {
@@ -1444,7 +1444,7 @@ function loadActiveTab() {
                 btn.click();
             }
         }
-    } catch(e) {}
+    } catch (e) { }
 }
 
 // 10. Startup
@@ -1637,7 +1637,7 @@ function importBlueprint() {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json,.yaml,.yml';
-    
+
     input.onchange = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -1647,7 +1647,7 @@ function importBlueprint() {
             try {
                 let parsed;
                 const extension = file.name.split('.').pop().toLowerCase();
-                
+
                 if (extension === 'yaml' || extension === 'yml') {
                     if (!window.jsyaml) throw new Error("YAML parser library not loaded.");
                     parsed = jsyaml.load(event.target.result);
@@ -1693,7 +1693,7 @@ function importScenarios() {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json';
-    
+
     input.onchange = (e) => {
         const file = e.target.files[0];
         if (!file) return;
@@ -1705,7 +1705,7 @@ function importScenarios() {
                 if (!Array.isArray(parsed)) {
                     throw new Error("Scenarios file must be a JSON array of scenario objects.");
                 }
-                
+
                 parsed.forEach((sc, sIdx) => {
                     if (!sc.name || !sc.variables) {
                         throw new Error(`Scenario #${sIdx + 1} is missing required 'name' or 'variables' properties.`);
