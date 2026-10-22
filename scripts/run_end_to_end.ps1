@@ -1,5 +1,5 @@
 param(
-    [switch]$Web
+    [switch]$Launch
 )
 
 $ErrorActionPreference = "Stop"
@@ -11,19 +11,13 @@ Write-Host "== ForgePriceBlueprint: end-to-end runner (Windows PowerShell) ==" -
 
 # 1. Verify .NET SDK is installed
 if (-not (Get-Command "dotnet" -ErrorAction SilentlyContinue)) {
-    Write-Error "Error: dotnet SDK not found in PATH. Please install .NET SDK to run the C# generator."
+    Write-Error "Error: dotnet SDK not found in PATH. Please install .NET SDK."
 }
 
-# 2. Run C# generator
-if ($Web) {
-    Write-Host "`n--> Starting local Blueprint Studio web server..." -ForegroundColor Green
-    dotnet run --project Forge/Forge.csproj --web
-    Pop-Location
-    exit
-} else {
-    Write-Host "`n--> Generating enterprise_blueprint.json via the Forge C# project..." -ForegroundColor Green
-    dotnet run --project Forge/Forge.csproj
-}
+# 2. Run unit & integration tests
+Write-Host "`n--> Running .NET test suite..." -ForegroundColor Green
+dotnet test Forge.Tests --nologo -v q
+
 
 # 3. Locate compiler and build
 Write-Host "`n--> Building C++ runtime (PriceBlueprint)..." -ForegroundColor Green
@@ -48,7 +42,7 @@ if (Get-Command "g++" -ErrorAction SilentlyContinue) {
     Write-Host "    Compiling CLI executable (price_blueprint.exe)..." -ForegroundColor DarkGray
     g++ -std=c++17 PriceBlueprint/src/main.cpp -IPriceBlueprint/include $vcpkgFlags -o price_blueprint.exe
     Write-Host "    Compiling shared library (price_blueprint.dll)..." -ForegroundColor DarkGray
-    g++ -shared -fPIC -std=c++17 PriceBlueprint/src/library.cpp -IPriceBlueprint/include $vcpkgFlags -o price_blueprint.dll
+    g++ -shared -fPIC -static -static-libgcc -static-libstdc++ -std=c++17 PriceBlueprint/src/library.cpp -IPriceBlueprint/include $vcpkgFlags -o price_blueprint.dll
     $builtExecutable = ".\price_blueprint.exe"
 }
 else {
@@ -94,6 +88,11 @@ if ($builtExecutable -and (Test-Path $builtExecutable)) {
     & $builtExecutable
 } else {
     Write-Error "Error: Executable not found. Build step may have failed."
+}
+
+if ($Launch) {
+    Write-Host "`n--> Launching Forge Desktop App..." -ForegroundColor Green
+    dotnet run --project Forge/Forge.csproj
 }
 
 Pop-Location

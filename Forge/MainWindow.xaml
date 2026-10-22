@@ -1,0 +1,251 @@
+<Window x:Class="Forge.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:c="clr-namespace:Forge.Controls"
+        Title="Forge Price Blueprint Studio" Height="820" Width="1440" MinWidth="1060" MinHeight="620"
+        Background="{x:Static c:Theme.Window}" FontFamily="Segoe UI" FontSize="13" UseLayoutRounding="True">
+
+    <Window.Resources>
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="{x:Static c:Theme.Panel}"/>
+            <Setter Property="BorderBrush" Value="{x:Static c:Theme.Border}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="12"/>
+        </Style>
+        <Style x:Key="SectionTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="15"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{x:Static c:Theme.Text}"/>
+        </Style>
+        <Style x:Key="Caption" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{x:Static c:Theme.Muted}"/>
+        </Style>
+        <Style x:Key="Primary" TargetType="Button">
+            <Setter Property="Background" Value="{x:Static c:Theme.Accent}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="14,6"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="bd" Background="{TemplateBinding Background}" CornerRadius="6" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True"><Setter TargetName="bd" Property="Opacity" Value="0.88"/></Trigger>
+                            <Trigger Property="IsEnabled" Value="False"><Setter TargetName="bd" Property="Opacity" Value="0.45"/></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="StatBox" TargetType="Border" BasedOn="{StaticResource Card}">
+            <Setter Property="Background" Value="#F9FAFB"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="Margin" Value="0,0,8,0"/>
+        </Style>
+        <Style x:Key="Mono" TargetType="TextBox">
+            <Setter Property="FontFamily" Value="Cascadia Mono, Consolas"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="AcceptsReturn" Value="True"/>
+            <Setter Property="AcceptsTab" Value="True"/>
+            <Setter Property="VerticalScrollBarVisibility" Value="Auto"/>
+            <Setter Property="HorizontalScrollBarVisibility" Value="Auto"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="8"/>
+        </Style>
+    </Window.Resources>
+
+    <DockPanel>
+        <!-- ============ Menu ============ -->
+        <Menu DockPanel.Dock="Top" Background="White" BorderBrush="{x:Static c:Theme.Border}" BorderThickness="0,0,0,1" Padding="4,2">
+            <MenuItem Header="_File">
+                <MenuItem Header="_New" Command="ApplicationCommands.New"/>
+                <MenuItem Header="_Open…" Command="ApplicationCommands.Open"/>
+                <MenuItem x:Name="RecentMenu" Header="Open _Recent"/>
+                <Separator/>
+                <MenuItem Header="_Save" Command="ApplicationCommands.Save"/>
+                <MenuItem Header="Save _As…" Command="ApplicationCommands.SaveAs"/>
+                <Separator/>
+                <MenuItem Header="_Import YAML…" Click="ImportYaml_Click"/>
+                <MenuItem Header="_Export YAML…" Click="ExportYaml_Click"/>
+                <Separator/>
+                <MenuItem Header="E_xit" Click="Exit_Click" InputGestureText="Alt+F4"/>
+            </MenuItem>
+            <MenuItem Header="_Presets" x:Name="PresetsMenu"/>
+            <MenuItem Header="_Rules" x:Name="RuleMenu"/>
+            <MenuItem Header="_Tools">
+                <MenuItem Header="Run _Validation" Click="RunValidation_Click" InputGestureText="F6"/>
+                <MenuItem Header="_Reset Simulator Inputs" Click="ResetContext_Click"/>
+            </MenuItem>
+        </Menu>
+
+        <!-- ============ Status bar ============ -->
+        <StatusBar DockPanel.Dock="Bottom" Background="White" BorderBrush="{x:Static c:Theme.Border}" BorderThickness="0,1,0,0">
+            <StatusBarItem>
+                <TextBlock x:Name="StatusText" Text="Ready"/>
+            </StatusBarItem>
+            <StatusBarItem HorizontalAlignment="Right">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock x:Name="FileText" Foreground="{x:Static c:Theme.Muted}" Margin="0,0,16,0"/>
+                    <TextBlock x:Name="EngineStatus" Text="Engine: ready" Foreground="{x:Static c:Theme.Ok}"/>
+                </StackPanel>
+            </StatusBarItem>
+        </StatusBar>
+
+        <!-- ============ Workspace ============ -->
+        <Grid Margin="10">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="400" MinWidth="320"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*" MinWidth="380"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="400" MinWidth="280"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Designer -->
+            <Border Grid.Column="0" Style="{StaticResource Card}">
+                <DockPanel>
+                    <StackPanel DockPanel.Dock="Top" Margin="0,0,0,10">
+                        <TextBlock Text="Pipeline Designer" Style="{StaticResource SectionTitle}"/>
+                        <TextBlock Text="Rules run top to bottom" Style="{StaticResource Caption}" Margin="0,0,0,8"/>
+                        <TextBlock Text="Blueprint name" Style="{StaticResource Caption}"/>
+                        <TextBox x:Name="BlueprintNameBox" Padding="5,4" Margin="0,2,0,0"/>
+                    </StackPanel>
+                    <Button x:Name="AddRuleButton" DockPanel.Dock="Bottom" Content="＋  Add Rule" Style="{StaticResource Primary}" Margin="0,8,0,0"/>
+                    <ScrollViewer VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="RulesPanel"/>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <GridSplitter Grid.Column="1" Width="10" HorizontalAlignment="Center" Background="Transparent" ResizeBehavior="PreviousAndNext"/>
+
+            <!-- Simulator -->
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0" Style="{StaticResource Card}">
+                    <StackPanel>
+                        <DockPanel Margin="0,0,0,8">
+                            <Button DockPanel.Dock="Right" Content="Reset" Click="ResetContext_Click" Padding="10,2"/>
+                            <TextBlock Text="Simulator Inputs" Style="{StaticResource SectionTitle}"/>
+                        </DockPanel>
+                        <WrapPanel x:Name="ContextPanel"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="1" Style="{StaticResource Card}" Margin="0,10,0,10">
+                    <DockPanel>
+                        <StackPanel DockPanel.Dock="Left" Margin="0,0,24,0">
+                            <TextBlock Text="FINAL PRICE" Style="{StaticResource Caption}" FontWeight="SemiBold"/>
+                            <TextBlock x:Name="FinalPriceText" Text="$0.00" FontSize="40" FontWeight="Bold" Foreground="{x:Static c:Theme.Accent}"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" HorizontalAlignment="Right">
+                            <Border Style="{StaticResource StatBox}">
+                                <StackPanel>
+                                    <TextBlock Text="Initial base" Style="{StaticResource Caption}"/>
+                                    <TextBlock x:Name="BasePriceText" Text="$0.00" FontSize="16" FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource StatBox}">
+                                <StackPanel>
+                                    <TextBlock Text="Adjustments" Style="{StaticResource Caption}"/>
+                                    <TextBlock x:Name="AdjustmentText" Text="+$0.00" FontSize="16" FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource StatBox}" Margin="0">
+                                <StackPanel>
+                                    <TextBlock Text="Net savings" Style="{StaticResource Caption}"/>
+                                    <TextBlock x:Name="SavingsText" Text="0%" FontSize="16" FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </DockPanel>
+                </Border>
+
+                <Border Grid.Row="2" Style="{StaticResource Card}" Padding="4">
+                    <TabControl BorderThickness="0" Background="Transparent">
+                        <TabItem Header="Execution Trace">
+                            <ListView x:Name="TraceList" BorderThickness="0" Margin="0,4,0,0">
+                                <ListView.View>
+                                    <GridView>
+                                        <GridViewColumn Header="Rule" Width="190" DisplayMemberBinding="{Binding RuleName}"/>
+                                        <GridViewColumn Header="What happened" Width="300" DisplayMemberBinding="{Binding Description}"/>
+                                        <GridViewColumn Header="In" Width="80" DisplayMemberBinding="{Binding InputPrice, StringFormat=N2}"/>
+                                        <GridViewColumn Header="Out" Width="80" DisplayMemberBinding="{Binding OutputPrice, StringFormat=N2}"/>
+                                        <GridViewColumn Header="Change" Width="80" DisplayMemberBinding="{Binding Adjustment, StringFormat={}{0:+0.00;-0.00;0.00}}"/>
+                                    </GridView>
+                                </ListView.View>
+                            </ListView>
+                        </TabItem>
+                        <TabItem Header="Discount Curve">
+                            <c:CurveChart x:Name="ChartView" Margin="0,4,0,0" MinHeight="200"/>
+                        </TabItem>
+                        <TabItem Header="What-If Scenarios">
+                            <DockPanel Margin="0,6,0,0">
+                                <WrapPanel DockPanel.Dock="Top" Margin="0,0,0,6">
+                                    <Button Content="＋ Save current" Click="SaveScenario_Click" Padding="10,3" Margin="0,0,6,0" ToolTip="Store the current simulator inputs as a scenario"/>
+                                    <Button Content="Load into simulator" Click="LoadScenario_Click" Padding="10,3" Margin="0,0,6,0"/>
+                                    <Button Content="Delete" Click="DeleteScenario_Click" Padding="10,3" Margin="0,0,6,0"/>
+                                    <Button Content="Import…" Click="ImportScenarios_Click" Padding="10,3" Margin="0,0,6,0"/>
+                                    <Button Content="Export…" Click="ExportScenarios_Click" Padding="10,3"/>
+                                </WrapPanel>
+                                <DataGrid x:Name="MatrixGrid" IsReadOnly="True" AutoGenerateColumns="True" HeadersVisibility="Column"
+                                          GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{x:Static c:Theme.Border}"
+                                          BorderThickness="0" Background="White" RowBackground="White" SelectionMode="Single"
+                                          CanUserAddRows="False"/>
+                            </DockPanel>
+                        </TabItem>
+                    </TabControl>
+                </Border>
+            </Grid>
+
+            <GridSplitter Grid.Column="3" Width="10" HorizontalAlignment="Center" Background="Transparent" ResizeBehavior="PreviousAndNext"/>
+
+            <!-- Developer panel -->
+            <Border Grid.Column="4" Style="{StaticResource Card}" Padding="4">
+                <TabControl BorderThickness="0" Background="Transparent">
+                    <TabItem Header="JSON">
+                        <DockPanel Margin="0,4,0,0">
+                            <TextBlock x:Name="JsonErrorText" DockPanel.Dock="Bottom" Foreground="{x:Static c:Theme.Error}" TextWrapping="Wrap" Margin="6,4" Visibility="Collapsed"/>
+                            <Border BorderBrush="{x:Static c:Theme.Border}" BorderThickness="1" CornerRadius="6">
+                                <TextBox x:Name="JsonEditor" Style="{StaticResource Mono}" SpellCheck.IsEnabled="False"/>
+                            </Border>
+                        </DockPanel>
+                    </TabItem>
+                    <TabItem Header="YAML">
+                        <DockPanel Margin="0,4,0,0">
+                            <TextBlock x:Name="YamlErrorText" DockPanel.Dock="Bottom" Foreground="{x:Static c:Theme.Error}" TextWrapping="Wrap" Margin="6,4" Visibility="Collapsed"/>
+                            <Border BorderBrush="{x:Static c:Theme.Border}" BorderThickness="1" CornerRadius="6">
+                                <TextBox x:Name="YamlEditor" Style="{StaticResource Mono}" SpellCheck.IsEnabled="False"/>
+                            </Border>
+                        </DockPanel>
+                    </TabItem>
+                    <TabItem Header="Validation">
+                        <DockPanel Margin="0,6,0,0">
+                            <DockPanel DockPanel.Dock="Top" Margin="0,0,0,8">
+                                <Button DockPanel.Dock="Right" Content="Run validation" Style="{StaticResource Primary}" Click="RunValidation_Click"/>
+                                <TextBlock x:Name="ValidationSummary" Text="Checks the blueprint against a grid of scenarios." Foreground="{x:Static c:Theme.Muted}" VerticalAlignment="Center" TextWrapping="Wrap" Margin="0,0,8,0"/>
+                            </DockPanel>
+                            <ListBox x:Name="ValidationList" BorderThickness="0" HorizontalContentAlignment="Stretch">
+                                <ListBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Text}" Foreground="{Binding Brush}" TextWrapping="Wrap" Margin="2,3"/>
+                                    </DataTemplate>
+                                </ListBox.ItemTemplate>
+                            </ListBox>
+                        </DockPanel>
+                    </TabItem>
+                </TabControl>
+            </Border>
+        </Grid>
+    </DockPanel>
+</Window>

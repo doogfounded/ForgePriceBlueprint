@@ -17,9 +17,9 @@ if ! command -v g++ >/dev/null 2>&1; then
   echo "Attempting to continue, but build will fail without a C++ compiler."
 fi
 
-# 1) Generate the JSON blueprint
-echo "--> Generating enterprise_blueprint.json via the Forge C# project..."
-dotnet run --project Forge/Forge.csproj
+# 1) Run tests
+echo "--> Running .NET test suite..."
+dotnet test Forge.Tests --nologo -v q
 
 # 2) Build the C++ runtime
 echo "--> Building C++ runtime (PriceBlueprint)..."
