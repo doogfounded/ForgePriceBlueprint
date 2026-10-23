@@ -80,6 +80,8 @@
             <MenuItem Header="_Tools">
                 <MenuItem Header="Run _Validation" Click="RunValidation_Click" InputGestureText="F6"/>
                 <MenuItem Header="_Reset Simulator Inputs" Click="ResetContext_Click"/>
+                <Separator/>
+                <MenuItem Header="_Error Diagnostics" Click="ErrorDetails_Click" InputGestureText="Ctrl+Shift+E"/>
             </MenuItem>
         </Menu>
 
@@ -89,9 +91,10 @@
                 <TextBlock x:Name="StatusText" Text="Ready"/>
             </StatusBarItem>
             <StatusBarItem HorizontalAlignment="Right">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock x:Name="FileText" Foreground="{x:Static c:Theme.Muted}" Margin="0,0,16,0"/>
-                    <TextBlock x:Name="EngineStatus" Text="Engine: ready" Foreground="{x:Static c:Theme.Ok}"/>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="ErrorDetailsButton" Content="⚠ 0 Errors" Visibility="Collapsed" Click="ErrorDetailsButton_Click" Margin="0,0,16,0" Padding="6,2"/>
+                    <TextBlock x:Name="FileText" Foreground="{x:Static c:Theme.Muted}" Margin="0,0,16,0" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="EngineStatus" Text="Engine: ready" Foreground="{x:Static c:Theme.Ok}" VerticalAlignment="Center"/>
                 </StackPanel>
             </StatusBarItem>
         </StatusBar>

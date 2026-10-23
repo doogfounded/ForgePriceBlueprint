@@ -1,6 +1,7 @@
 using System.Data;
 using System.Globalization;
 using System.IO;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows;
 using System.Windows.Controls;
@@ -50,6 +51,7 @@ namespace Forge
             BindCommand(ApplicationCommands.Save, () => Save());
             BindCommand(ApplicationCommands.SaveAs, () => SaveAs());
             InputBindings.Add(new KeyBinding(new RelayCommand(() => RunValidation_Click(this, new RoutedEventArgs())), Key.F6, ModifierKeys.None));
+            InputBindings.Add(new KeyBinding(new RelayCommand(() => ErrorDetails_Click(this, new RoutedEventArgs())), Key.E, ModifierKeys.Control | ModifierKeys.Shift));
 
             BuildRuleMenus();
             BuildPresetMenu();
@@ -68,6 +70,15 @@ namespace Forge
             };
             MatrixGrid.MouseDoubleClick += (_, _) => LoadScenario_Click(this, new RoutedEventArgs());
             Closing += (_, e) => { if (!ConfirmDiscard()) e.Cancel = true; };
+
+            ErrorDiagnosticsService.Instance.ErrorOccurred += OnDiagnosticError;
+            ErrorDiagnosticsService.Instance.HistoryCleared += OnDiagnosticHistoryCleared;
+            Closed += (_, _) =>
+            {
+                ErrorDiagnosticsService.Instance.ErrorOccurred -= OnDiagnosticError;
+                ErrorDiagnosticsService.Instance.HistoryCleared -= OnDiagnosticHistoryCleared;
+            };
+            UpdateErrorStatus();
 
             UpdateRecentMenu();
             LoadPreset(Presets.All[0]);
@@ -239,7 +250,8 @@ namespace Forge
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 Log.Error(ex, "Save failed for {Path}", path);
-                MessageBox.Show(this, ex.Message, "Could not save blueprint", MessageBoxButton.OK, MessageBoxImage.Error);
+                ErrorDiagnosticsService.Instance.ReportException("Blueprint Save", ex, $"Path: {path}");
+                SetStatus($"Could not save blueprint: {ex.Message}", error: true);
                 return false;
             }
         }
@@ -267,7 +279,8 @@ namespace Forge
         {
             string detail = ex.Errors.Count == 0 ? "" : "\n\n• " + string.Join("\n• ", ex.Errors.Take(8)) +
                 (ex.Errors.Count > 8 ? $"\n…and {ex.Errors.Count - 8} more" : "");
-            MessageBox.Show(this, ex.Message + detail, title, MessageBoxButton.OK, MessageBoxImage.Warning);
+            ErrorDiagnosticsService.Instance.ReportException(title, ex, detail);
+            SetStatus($"{title}: {ex.Message}", error: true);
         }
 
         private void UpdateTitle()
@@ -303,7 +316,8 @@ namespace Forge
             catch (BlueprintLoadException ex) { ShowLoadError("Could not import YAML", ex); }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or YamlDotNet.Core.YamlException)
             {
-                MessageBox.Show(this, ex.Message, "Could not import YAML", MessageBoxButton.OK, MessageBoxImage.Warning);
+                ErrorDiagnosticsService.Instance.ReportException("YAML Import", ex, $"File: {dialog.FileName}");
+                SetStatus($"Could not import YAML: {ex.Message}", error: true);
             }
         }
 
@@ -324,7 +338,8 @@ namespace Forge
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                MessageBox.Show(this, ex.Message, "Could not export YAML", MessageBoxButton.OK, MessageBoxImage.Error);
+                ErrorDiagnosticsService.Instance.ReportException("YAML Export", ex, $"File: {dialog.FileName}");
+                SetStatus($"Could not export YAML: {ex.Message}", error: true);
             }
         }
 
@@ -561,12 +576,15 @@ namespace Forge
             catch (PricingEngineException ex)
             {
                 ClearResults();
+                string snapshot = $"Blueprint JSON:\n{json}\n\nContext Variables:\n{JsonSerializer.Serialize(CurrentContext(), new JsonSerializerOptions { WriteIndented = true })}";
+                ErrorDiagnosticsService.Instance.ReportException("Pricing Engine", ex, snapshot);
                 SetStatus("Engine: " + ex.Message, error: true);
             }
             catch (Exception ex) when (ex is DllNotFoundException or BadImageFormatException or EntryPointNotFoundException)
             {
                 Log.Error(ex, "Pricing engine could not be loaded");
                 ClearResults();
+                ErrorDiagnosticsService.Instance.ReportException("Pricing Engine Native DLL", ex, "Native library 'price_blueprint.dll' failed to load or missing entry point.");
                 SetEngineStatus(false, "Engine: price_blueprint.dll missing or invalid");
                 SetStatus(ex.Message, error: true);
             }
@@ -706,7 +724,8 @@ namespace Forge
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
             {
-                MessageBox.Show(this, ex.Message, "Could not import scenarios", MessageBoxButton.OK, MessageBoxImage.Warning);
+                ErrorDiagnosticsService.Instance.ReportException("Scenario Import", ex, $"File: {dialog.FileName}");
+                SetStatus($"Could not import scenarios: {ex.Message}", error: true);
             }
         }
 
@@ -722,7 +741,8 @@ namespace Forge
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                MessageBox.Show(this, ex.Message, "Could not export scenarios", MessageBoxButton.OK, MessageBoxImage.Error);
+                ErrorDiagnosticsService.Instance.ReportException("Scenario Export", ex, $"File: {dialog.FileName}");
+                SetStatus($"Could not export scenarios: {ex.Message}", error: true);
             }
         }
 
@@ -757,13 +777,39 @@ namespace Forge
                 ValidationSummary.Text = "The blueprint is not structurally valid.";
                 ValidationSummary.Foreground = Theme.Error;
                 ValidationList.ItemsSource = ex.Errors.Select(m => new ValidationRow("✖ " + m, Theme.Error)).ToList();
+                ErrorDiagnosticsService.Instance.ReportException("Blueprint Validation", ex, string.Join("\n", ex.Errors));
             }
             catch (Exception ex) when (ex is PricingEngineException or DllNotFoundException or BadImageFormatException)
             {
                 ValidationSummary.Text = "Validation failed: " + ex.Message;
                 ValidationSummary.Foreground = Theme.Error;
+                ErrorDiagnosticsService.Instance.ReportException("Blueprint Validation", ex, $"Blueprint JSON:\n{json}");
             }
         }
+
+        // =====================================================================
+        // Diagnostics & Error UI
+        // =====================================================================
+
+        private void OnDiagnosticError(DiagnosticErrorEntry _) => Dispatcher.InvokeAsync(UpdateErrorStatus);
+        private void OnDiagnosticHistoryCleared() => Dispatcher.InvokeAsync(UpdateErrorStatus);
+
+        private void UpdateErrorStatus()
+        {
+            int count = ErrorDiagnosticsService.Instance.ErrorCount;
+            if (count > 0)
+            {
+                ErrorDetailsButton.Content = $"⚠ {count} Error{(count == 1 ? "" : "s")}";
+                ErrorDetailsButton.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                ErrorDetailsButton.Visibility = Visibility.Collapsed;
+            }
+        }
+
+        private void ErrorDetailsButton_Click(object sender, RoutedEventArgs e) => ErrorDetailsWindow.ShowWindow();
+        private void ErrorDetails_Click(object sender, RoutedEventArgs e) => ErrorDetailsWindow.ShowWindow();
 
         // =====================================================================
         // Test hooks
@@ -776,6 +822,8 @@ namespace Forge
         internal IReadOnlyDictionary<string, object> Values => _values;
         internal int ScenarioCount => _scenarios.Count;
         internal string StatusMessage => StatusText.Text;
+        internal Visibility ErrorButtonVisibility => ErrorDetailsButton.Visibility;
+        internal string ErrorButtonText => (string)ErrorDetailsButton.Content;
 
         internal void SetValue(string key, object value)
         {

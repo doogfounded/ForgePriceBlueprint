@@ -76,5 +76,96 @@ namespace Forge.Tests
                 throw new AggregateException(threadEx);
             }
         }
+
+        [Fact]
+        public void MainWindow_ErrorStatusBarUpdates_OnDiagnosticEvents()
+        {
+            Exception? threadEx = null;
+            var t = new Thread(() =>
+            {
+                try
+                {
+                    Forge.Services.ErrorDiagnosticsService.Instance.Clear();
+                    var window = new MainWindow();
+
+                    Assert.Equal(Visibility.Collapsed, window.ErrorButtonVisibility);
+
+                    // Report an error
+                    Forge.Services.ErrorDiagnosticsService.Instance.ReportError("TestModule", "Sample failure");
+                    System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+
+                    Assert.Equal(Visibility.Visible, window.ErrorButtonVisibility);
+                    Assert.Equal("⚠ 1 Error", window.ErrorButtonText);
+
+                    // Report a second error
+                    Forge.Services.ErrorDiagnosticsService.Instance.ReportError("TestModule", "Another failure");
+                    System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+
+                    Assert.Equal(Visibility.Visible, window.ErrorButtonVisibility);
+                    Assert.Equal("⚠ 2 Errors", window.ErrorButtonText);
+
+                    // Clear
+                    Forge.Services.ErrorDiagnosticsService.Instance.Clear();
+                    System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+
+                    Assert.Equal(Visibility.Collapsed, window.ErrorButtonVisibility);
+
+                    window.Close();
+                }
+                catch (Exception ex)
+                {
+                    threadEx = ex;
+                }
+            });
+
+            t.SetApartmentState(ApartmentState.STA);
+            t.Start();
+            t.Join(TimeSpan.FromSeconds(10));
+
+            if (threadEx != null)
+            {
+                throw new AggregateException(threadEx);
+            }
+        }
+
+        [Fact]
+        public void MainWindow_SaveFailure_ReportsToDiagnosticsService()
+        {
+            Exception? threadEx = null;
+            var t = new Thread(() =>
+            {
+                try
+                {
+                    Forge.Services.ErrorDiagnosticsService.Instance.Clear();
+                    var window = new MainWindow();
+
+                    bool saved = window.SaveTo("Z:\\Invalid\\NonExistentFolder_12345\\blueprint.json");
+                    Assert.False(saved);
+
+                    var latest = Forge.Services.ErrorDiagnosticsService.Instance.LatestError;
+                    Assert.NotNull(latest);
+                    Assert.Equal("Blueprint Save", latest.Source);
+                    Assert.Contains("Path: Z:\\Invalid\\NonExistentFolder_12345\\blueprint.json", latest.ContextSnapshot);
+                    Assert.Contains("Could not save blueprint", window.StatusMessage);
+
+                    window.Close();
+                }
+                catch (Exception ex)
+                {
+                    threadEx = ex;
+                }
+            });
+
+            t.SetApartmentState(ApartmentState.STA);
+            t.Start();
+            t.Join(TimeSpan.FromSeconds(10));
+
+            if (threadEx != null)
+            {
+                throw new AggregateException(threadEx);
+            }
+        }
     }
 }
+
+
