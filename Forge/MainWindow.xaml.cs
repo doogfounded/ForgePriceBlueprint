@@ -831,5 +831,8 @@ namespace Forge
             _varSignature = "";
             RefreshSimulation();
         }
+
+        internal void ApplyJsonEditorForTesting() => ApplyJsonEditor();
+        internal void RecomputeForTesting(string json) => Recompute(json);
     }
 }

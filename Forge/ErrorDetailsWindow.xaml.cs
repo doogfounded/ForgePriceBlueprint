@@ -154,5 +154,6 @@ namespace Forge
         internal string DetailsText => DetailsTextBox.Text;
         internal int ErrorCount => _entries.Count;
         internal void SelectIndex(int index) => ErrorsListBox.SelectedIndex = index;
+        internal void ClearForTesting() => _service.Clear();
     }
 }

@@ -6,6 +6,7 @@ using Xunit;
 
 namespace Forge.Tests
 {
+    [Collection("DiagnosticsCollection")]
     public class AppCrashHandlingTests
     {
         [Fact]
