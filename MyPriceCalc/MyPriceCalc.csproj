@@ -9,6 +9,7 @@
     <RootNamespace>MyPriceCalc</RootNamespace>
     <AssemblyName>MyPriceCalc</AssemblyName>
     <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
 
   <ItemGroup>
