@@ -28,17 +28,16 @@ else
     EXE_EXT = 
 endif
 
-# Build the C++ runtime (both the CLI executable and the shared dynamic library)
+# Build the C++ runtime shared dynamic library
 build:
-	g++ -std=c++17 PriceBlueprint/src/main.cpp -IPriceBlueprint/include $(VCPKG_FLAGS) -o price_blueprint$(EXE_EXT)
 	g++ -shared -fPIC -static -static-libgcc -static-libstdc++ -std=c++17 PriceBlueprint/src/library.cpp -IPriceBlueprint/include $(VCPKG_FLAGS) -o price_blueprint.$(LIB_EXT)
 
-# Build then run engine CLI
+# Run studio desktop app
 run: build
-	./price_blueprint$(EXE_EXT)
+	dotnet run --project Forge/Forge.csproj
 
 app:
 	dotnet run --project Forge/Forge.csproj
 
 clean:
-	rm -f price_blueprint price_blueprint.exe price_blueprint.dll price_blueprint.so
+	rm -f price_blueprint.dll price_blueprint.so

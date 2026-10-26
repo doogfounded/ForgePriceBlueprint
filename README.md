@@ -1,28 +1,25 @@
 # ForgePriceBlueprint
 The pricing operating system.
 
-ForgePriceBlueprint combines a high-performance C++ pricing engine runtime (`PriceBlueprint`) with a native Windows desktop studio (`Forge`) built in WPF (.NET 10).
+ForgePriceBlueprint combines a high-performance C++ pricing engine runtime (`PriceBlueprint`) with a streamlined native Windows desktop studio (`Forge`) built in WPF (.NET 10).
 
 ---
 
 ## Architecture Overview
 
 1. **`PriceBlueprint` (C++)**:
-   - High-throughput execution engine evaluating rule pipelines, expressions, condition keys, tiered volume rates, graduated discounts, price caps, and rounding.
+   - High-throughput execution engine evaluating rule pipelines, expressions, condition keys, percentage adjustments, flat adjustments, and rounding.
    - Built as a shared library (`price_blueprint.dll`) exporting a thread-safe, reentrant `PB_Calculate` C ABI function.
-   - Built optionally as a standalone CLI benchmark/runner (`price_blueprint.exe`).
 
 2. **`Forge` (C# / WPF on .NET 10)**:
    - Modern native desktop studio without any local web server or browser dependencies.
-   - **Pipeline Designer**: Add, configure, reorder, and collapse rule cards (BasePrice, TieredPricing, PercentageAdjustment, FlatAdjustment, PriceCap, Rounding).
+   - **Pipeline Designer**: Add, configure, reorder, and collapse rule cards (BasePrice, PercentageAdjustment, FlatAdjustment, Rounding).
    - **Live Simulator**: Dynamically infers context variables from active rule conditions and displays live prices, net savings, and complete step-by-step audit trails.
-   - **Discount Curve**: Custom-rendered vector canvas plotting the price discount curve and highlighting current active quantity.
-   - **What-If Scenario Matrix**: Run side-by-side comparative matrices, save current simulation states, and import/export scenario suites.
-   - **Developer Hub**: Synchronized JSON and YAML editors with real-time validation feedback, plus an in-process anomaly detection analyzer.
    - **File Management**: Open, Save, Save As, and Recent Files history, with built-in presets (Enterprise Contract, SaaS Subscription, E-commerce Promo).
+   - **Error Diagnostics**: Thread-safe error tracking and diagnostic details window with Serilog rolling log file sink.
 
 3. **`Forge.Tests` (C# / xUnit)**:
-   - Comprehensive test suite covering DTOs, the fluent builder, schema validation, the in-process native engine interop wrapper, YAML converters, scenario serialization, and WPF UI smoke tests.
+   - Comprehensive test suite covering DTOs, the fluent builder, schema validation, the in-process native engine interop wrapper, crash handling, and WPF UI smoke tests.
 
 ---
 
@@ -45,9 +42,9 @@ dotnet test Forge.Tests
 dotnet run --project Forge/Forge.csproj
 ```
 
-### 4. Publish Self-Contained Release
-To produce a standalone, self-contained single-folder distribution without needing an installer:
+### 4. Publish Self-Contained Single-File Release
+To produce a standalone, self-contained single-file distribution without needing an installer:
 
 ```powershell
-dotnet publish Forge/Forge.csproj -c Release -r win-x64 --self-contained true -o ./dist
+dotnet publish Forge/Forge.csproj -c Release -r win-x64 -o ./dist
 ```

@@ -68,21 +68,20 @@ namespace Forge.Tests
         }
 
         [Fact]
-        public void AddPriceCap_ShouldAddRuleToBlueprint()
+        public void AddRounding_ShouldAddRuleToBlueprint()
         {
             // Arrange
             var builder = new BlueprintBuilder("Test Blueprint")
-                .AddPriceCap("Price Floor", minPrice: 100.0, maxPrice: 500.0);
+                .AddRounding("Round Price", "NearestDollar");
 
             // Act
             var blueprint = builder.Build();
 
             // Assert
             var rule = Assert.Single(blueprint.Rules);
-            var capRule = Assert.IsType<PriceCapRuleDto>(rule);
-            Assert.Equal("Price Floor", capRule.Name);
-            Assert.Equal(100.0, capRule.MinPrice);
-            Assert.Equal(500.0, capRule.MaxPrice);
+            var roundRule = Assert.IsType<RoundingRuleDto>(rule);
+            Assert.Equal("Round Price", roundRule.Name);
+            Assert.Equal("NearestDollar", roundRule.RoundingMode);
         }
     }
 }

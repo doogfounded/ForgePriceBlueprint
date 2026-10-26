@@ -38,13 +38,6 @@ namespace Forge.Models
                             ContextKind.Number, BlueprintDocument.AsNumber(rule["DefaultPrice"]) ?? 0.0);
                         break;
 
-                    case "TieredPricing":
-                        var mins = (rule["Tiers"] as JsonArray)?.OfType<JsonObject>()
-                            .Select(t => BlueprintDocument.AsNumber(t["MinQuantity"]) ?? 0).OrderBy(x => x).ToList()
-                            ?? new List<double>();
-                        double def = mins.Count > 1 ? mins[1] : mins.Count == 1 ? mins[0] : 1.0;
-                        Add(BlueprintDocument.AsString(rule["QuantityKey"]), ContextKind.Number, def);
-                        break;
 
                     case "PercentageAdjustment":
                     case "FlatAdjustment":

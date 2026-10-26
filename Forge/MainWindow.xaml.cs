@@ -1,4 +1,3 @@
-using System.Data;
 using System.Globalization;
 using System.IO;
 using System.Text.Json;
@@ -16,21 +15,14 @@ using Serilog;
 
 namespace Forge
 {
-    public sealed record ValidationRow(string Text, Brush Brush);
-
     public partial class MainWindow : Window
     {
-        private enum EditSource { None, Json, Yaml, Name }
-
         private const string AppTitle = "Forge Price Blueprint Studio";
 
         private readonly PricingEngine _engine = new();
         private readonly RecentFilesService _recent = new();
         private readonly BlueprintDocument _doc = new();
         private readonly HashSet<JsonObject> _collapsed = new();
-        private readonly List<ScenarioItem> _scenarios = new();
-        private readonly DispatcherTimer _jsonTimer = new() { Interval = TimeSpan.FromMilliseconds(350) };
-        private readonly DispatcherTimer _yamlTimer = new() { Interval = TimeSpan.FromMilliseconds(350) };
 
         private Dictionary<string, object> _values = new();
         private Dictionary<string, object> _defaults = new();
@@ -40,7 +32,6 @@ namespace Forge
         private string? _filePath;
         private bool _dirty;
         private bool _suppress;
-        private EditSource _source = EditSource.None;
 
         public MainWindow()
         {
@@ -50,25 +41,17 @@ namespace Forge
             BindCommand(ApplicationCommands.Open, OpenBlueprint);
             BindCommand(ApplicationCommands.Save, () => Save());
             BindCommand(ApplicationCommands.SaveAs, () => SaveAs());
-            InputBindings.Add(new KeyBinding(new RelayCommand(() => RunValidation_Click(this, new RoutedEventArgs())), Key.F6, ModifierKeys.None));
             InputBindings.Add(new KeyBinding(new RelayCommand(() => ErrorDetails_Click(this, new RoutedEventArgs())), Key.E, ModifierKeys.Control | ModifierKeys.Shift));
 
             BuildRuleMenus();
             BuildPresetMenu();
 
             _doc.Changed += OnDocChanged;
-            _jsonTimer.Tick += (_, _) => { _jsonTimer.Stop(); ApplyJsonEditor(); };
-            _yamlTimer.Tick += (_, _) => { _yamlTimer.Stop(); ApplyYamlEditor(); };
-            JsonEditor.TextChanged += (_, _) => { if (!_suppress) { _jsonTimer.Stop(); _jsonTimer.Start(); } };
-            YamlEditor.TextChanged += (_, _) => { if (!_suppress) { _yamlTimer.Stop(); _yamlTimer.Start(); } };
             BlueprintNameBox.TextChanged += (_, _) =>
             {
                 if (_suppress) return;
-                _source = EditSource.Name;
                 _doc.Name = BlueprintNameBox.Text;
-                _source = EditSource.None;
             };
-            MatrixGrid.MouseDoubleClick += (_, _) => LoadScenario_Click(this, new RoutedEventArgs());
             Closing += (_, e) => { if (!ConfirmDiscard()) e.Cancel = true; };
 
             ErrorDiagnosticsService.Instance.ErrorOccurred += OnDiagnosticError;
@@ -166,14 +149,8 @@ namespace Forge
         {
             _values.Clear();
             _defaults = preset != null ? new Dictionary<string, object>(preset.Context) : new Dictionary<string, object>();
-            _scenarios.Clear();
-            if (preset != null)
-            {
-                _scenarios.AddRange(preset.Scenarios.Select(s => new ScenarioItem { Name = s.Name, Variables = new(s.Variables) }));
-            }
             _collapsed.Clear();
             _varSignature = "";
-            _source = EditSource.None;
 
             _doc.Load(json);
 
@@ -297,61 +274,14 @@ namespace Forge
         }
 
         // =====================================================================
-        // YAML import / export
-        // =====================================================================
-
-        private void ImportYaml_Click(object sender, RoutedEventArgs e)
-        {
-            if (!ConfirmDiscard()) return;
-            var dialog = new OpenFileDialog { Filter = "YAML (*.yaml;*.yml)|*.yaml;*.yml|All files (*.*)|*.*", Title = "Import YAML blueprint" };
-            if (dialog.ShowDialog(this) != true) return;
-
-            try
-            {
-                string json = YamlConverter.YamlToJson(File.ReadAllText(dialog.FileName));
-                BlueprintFileService.Validate(json);
-                SetDocument(json, null, true);
-                SetStatus($"Imported {dialog.FileName} (unsaved)");
-            }
-            catch (BlueprintLoadException ex) { ShowLoadError("Could not import YAML", ex); }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or YamlDotNet.Core.YamlException)
-            {
-                ErrorDiagnosticsService.Instance.ReportException("YAML Import", ex, $"File: {dialog.FileName}");
-                SetStatus($"Could not import YAML: {ex.Message}", error: true);
-            }
-        }
-
-        private void ExportYaml_Click(object sender, RoutedEventArgs e)
-        {
-            var dialog = new SaveFileDialog
-            {
-                Filter = "YAML (*.yaml)|*.yaml",
-                Title = "Export YAML",
-                FileName = Sanitize(_doc.Name) + ".yaml"
-            };
-            if (dialog.ShowDialog(this) != true) return;
-
-            try
-            {
-                File.WriteAllText(dialog.FileName, YamlConverter.JsonToYaml(_doc.ToJson()));
-                SetStatus($"Exported {dialog.FileName}");
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                ErrorDiagnosticsService.Instance.ReportException("YAML Export", ex, $"File: {dialog.FileName}");
-                SetStatus($"Could not export YAML: {ex.Message}", error: true);
-            }
-        }
-
-        // =====================================================================
-        // Document change handling & editor sync
+        // Document change handling
         // =====================================================================
 
         private void OnDocChanged(bool structural)
         {
             if (structural) RebuildCards();
 
-            if (_source != EditSource.Name && BlueprintNameBox.Text != _doc.Name)
+            if (BlueprintNameBox.Text != _doc.Name)
             {
                 _suppress = true;
                 BlueprintNameBox.Text = _doc.Name;
@@ -360,57 +290,7 @@ namespace Forge
 
             _dirty = true;
             UpdateTitle();
-            UpdateEditors(_source);
             RefreshSimulation();
-        }
-
-        private void UpdateEditors(EditSource skip)
-        {
-            _suppress = true;
-            try
-            {
-                string json = _doc.ToJson();
-                if (skip != EditSource.Json)
-                {
-                    JsonEditor.Text = json;
-                    JsonErrorText.Visibility = Visibility.Collapsed;
-                }
-                if (skip != EditSource.Yaml)
-                {
-                    YamlEditor.Text = YamlConverter.JsonToYaml(json);
-                    YamlErrorText.Visibility = Visibility.Collapsed;
-                }
-            }
-            finally { _suppress = false; }
-        }
-
-        private void ApplyJsonEditor() => ApplyEditor(JsonEditor.Text, EditSource.Json, JsonErrorText, text => text);
-
-        private void ApplyYamlEditor() => ApplyEditor(YamlEditor.Text, EditSource.Yaml, YamlErrorText, YamlConverter.YamlToJson);
-
-        private void ApplyEditor(string text, EditSource source, TextBlock errorText, Func<string, string> toJson)
-        {
-            try
-            {
-                string json = toJson(text);
-                BlueprintFileService.Validate(json);
-                errorText.Visibility = Visibility.Collapsed;
-
-                _source = source;
-                try { _doc.Load(json); }
-                finally { _source = EditSource.None; }
-            }
-            catch (BlueprintLoadException ex)
-            {
-                string first = ex.Errors.Count > 0 ? "\n• " + string.Join("\n• ", ex.Errors.Take(4)) : "";
-                errorText.Text = ex.Message + first;
-                errorText.Visibility = Visibility.Visible;
-            }
-            catch (Exception ex) when (ex is YamlDotNet.Core.YamlException or System.Text.Json.JsonException)
-            {
-                errorText.Text = ex.Message;
-                errorText.Visibility = Visibility.Visible;
-            }
         }
 
         // =====================================================================
@@ -567,8 +447,6 @@ namespace Forge
                 AdjustmentText.Foreground = delta < 0 ? Theme.Ok : delta > 0 ? Theme.Warn : Theme.Text;
                 SavingsText.Text = result.BasePrice > 0 ? (-delta / result.BasePrice * 100).ToString("0.#") + "%" : "—";
                 TraceList.ItemsSource = result.AuditTrail;
-                ChartView.Data = CurveCalculator.Compute(_engine, json, CurrentContext());
-                BuildMatrix(json, result.FinalPrice);
 
                 SetEngineStatus(true, "Engine: ready");
                 SetStatus(_dirty ? "Modified" : "Ready");
@@ -602,189 +480,6 @@ namespace Forge
             BasePriceText.Text = AdjustmentText.Text = SavingsText.Text = "—";
             AdjustmentText.Foreground = Theme.Text;
             TraceList.ItemsSource = null;
-            ChartView.Data = null;
-            MatrixGrid.ItemsSource = null;
-        }
-
-        // =====================================================================
-        // What-if scenarios
-        // =====================================================================
-
-        private Dictionary<string, object> ScenarioContext(ScenarioItem s)
-        {
-            var ctx = new Dictionary<string, object>();
-            foreach (var v in _vars)
-            {
-                bool usable = s.Variables.TryGetValue(v.Key, out var val) && val.GetType() == v.Default.GetType();
-                ctx[v.Key] = usable ? val! : _values.TryGetValue(v.Key, out var cur) ? cur : v.Default;
-            }
-            return ctx;
-        }
-
-        private static string Show(object value) => value switch
-        {
-            double d => d.ToString("0.####", CultureInfo.InvariantCulture),
-            bool b => b ? "true" : "false",
-            _ => value.ToString() ?? ""
-        };
-
-        private void BuildMatrix(string json, double currentFinal)
-        {
-            var table = new DataTable();
-            var used = new HashSet<string> { "Scenario", "Final Price", "Δ vs current" };
-            table.Columns.Add("Scenario");
-            var keyColumns = new Dictionary<string, string>();
-            foreach (var v in _vars)
-            {
-                string col = v.Key;
-                while (!used.Add(col)) col += "_";
-                keyColumns[v.Key] = col;
-                table.Columns.Add(col);
-            }
-            table.Columns.Add("Final Price");
-            table.Columns.Add("Δ vs current");
-
-            var live = table.NewRow();
-            live["Scenario"] = "▶ Current (live)";
-            foreach (var v in _vars) live[keyColumns[v.Key]] = Show(_values[v.Key]);
-            live["Final Price"] = "$" + currentFinal.ToString("N2");
-            live["Δ vs current"] = "—";
-            table.Rows.Add(live);
-
-            foreach (var s in _scenarios)
-            {
-                var ctx = ScenarioContext(s);
-                var row = table.NewRow();
-                row["Scenario"] = s.Name;
-                foreach (var v in _vars) row[keyColumns[v.Key]] = Show(ctx[v.Key]);
-                try
-                {
-                    double price = _engine.Calculate(json, ctx).FinalPrice;
-                    row["Final Price"] = "$" + price.ToString("N2");
-                    double d = price - currentFinal;
-                    row["Δ vs current"] = (d >= 0 ? "+" : "-") + "$" + Math.Abs(d).ToString("N2");
-                }
-                catch (PricingEngineException)
-                {
-                    row["Final Price"] = "error";
-                    row["Δ vs current"] = "—";
-                }
-                table.Rows.Add(row);
-            }
-
-            int selected = MatrixGrid.SelectedIndex;
-            MatrixGrid.ItemsSource = table.DefaultView;
-            if (selected >= 0 && selected < table.Rows.Count) MatrixGrid.SelectedIndex = selected;
-        }
-
-        private void SaveScenario_Click(object sender, RoutedEventArgs e)
-        {
-            string? name = InputDialog.Show(this, "Save scenario", "Scenario name:", $"Scenario {_scenarios.Count + 1}");
-            if (string.IsNullOrWhiteSpace(name)) return;
-
-            _scenarios.Add(new ScenarioItem { Name = name, Variables = new Dictionary<string, object>(CurrentContext()) });
-            Recompute();
-        }
-
-        private ScenarioItem? SelectedScenario()
-        {
-            int index = MatrixGrid.SelectedIndex - 1; // row 0 is the live row
-            return index >= 0 && index < _scenarios.Count ? _scenarios[index] : null;
-        }
-
-        private void LoadScenario_Click(object sender, RoutedEventArgs e)
-        {
-            var scenario = SelectedScenario();
-            if (scenario == null) return;
-
-            foreach (var kv in ScenarioContext(scenario)) _values[kv.Key] = kv.Value;
-            _varSignature = "";
-            RefreshSimulation();
-        }
-
-        private void DeleteScenario_Click(object sender, RoutedEventArgs e)
-        {
-            var scenario = SelectedScenario();
-            if (scenario == null) return;
-            _scenarios.Remove(scenario);
-            Recompute();
-        }
-
-        private void ImportScenarios_Click(object sender, RoutedEventArgs e)
-        {
-            var dialog = new OpenFileDialog { Filter = "Scenarios (*.json)|*.json", Title = "Import scenarios" };
-            if (dialog.ShowDialog(this) != true) return;
-
-            try
-            {
-                var imported = ScenarioIO.Parse(File.ReadAllText(dialog.FileName));
-                _scenarios.AddRange(imported);
-                Recompute();
-                SetStatus($"Imported {imported.Count} scenario(s)");
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
-            {
-                ErrorDiagnosticsService.Instance.ReportException("Scenario Import", ex, $"File: {dialog.FileName}");
-                SetStatus($"Could not import scenarios: {ex.Message}", error: true);
-            }
-        }
-
-        private void ExportScenarios_Click(object sender, RoutedEventArgs e)
-        {
-            var dialog = new SaveFileDialog { Filter = "Scenarios (*.json)|*.json", Title = "Export scenarios", FileName = "scenarios.json" };
-            if (dialog.ShowDialog(this) != true) return;
-
-            try
-            {
-                File.WriteAllText(dialog.FileName, ScenarioIO.Serialize(_scenarios));
-                SetStatus($"Exported {_scenarios.Count} scenario(s)");
-            }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-                ErrorDiagnosticsService.Instance.ReportException("Scenario Export", ex, $"File: {dialog.FileName}");
-                SetStatus($"Could not export scenarios: {ex.Message}", error: true);
-            }
-        }
-
-        // =====================================================================
-        // Validation
-        // =====================================================================
-
-        private async void RunValidation_Click(object sender, RoutedEventArgs e)
-        {
-            string json = _doc.ToJson();
-            ValidationSummary.Text = "Running validation…";
-            ValidationSummary.Foreground = Theme.Muted;
-            ValidationList.ItemsSource = null;
-
-            try
-            {
-                var report = await Task.Run(() => new BlueprintAnalyzer(_engine).Analyze(json));
-
-                ValidationSummary.Text = report.Valid
-                    ? $"✓ No issues across {report.ScenariosTested} scenarios."
-                    : $"{report.Anomalies.Count} issue(s) across {report.ScenariosTested} scenarios.";
-                ValidationSummary.Foreground = report.Valid ? Theme.Ok : Theme.Warn;
-                ValidationList.ItemsSource = report.Anomalies
-                    .OrderBy(a => a.Type == "Error" ? 0 : 1)
-                    .Select(a => new ValidationRow(
-                        (a.Type == "Error" ? "✖ " : "⚠ ") + a.Rule + ": " + a.Message,
-                        a.Type == "Error" ? Theme.Error : Theme.Warn))
-                    .ToList();
-            }
-            catch (BlueprintLoadException ex)
-            {
-                ValidationSummary.Text = "The blueprint is not structurally valid.";
-                ValidationSummary.Foreground = Theme.Error;
-                ValidationList.ItemsSource = ex.Errors.Select(m => new ValidationRow("✖ " + m, Theme.Error)).ToList();
-                ErrorDiagnosticsService.Instance.ReportException("Blueprint Validation", ex, string.Join("\n", ex.Errors));
-            }
-            catch (Exception ex) when (ex is PricingEngineException or DllNotFoundException or BadImageFormatException)
-            {
-                ValidationSummary.Text = "Validation failed: " + ex.Message;
-                ValidationSummary.Foreground = Theme.Error;
-                ErrorDiagnosticsService.Instance.ReportException("Blueprint Validation", ex, $"Blueprint JSON:\n{json}");
-            }
         }
 
         // =====================================================================
@@ -816,11 +511,8 @@ namespace Forge
         // =====================================================================
 
         internal string FinalPriceDisplay => FinalPriceText.Text;
-        internal string JsonEditorText { get => JsonEditor.Text; set => JsonEditor.Text = value; }
-        internal string YamlEditorText { get => YamlEditor.Text; set => YamlEditor.Text = value; }
         internal int CardCount => RulesPanel.Children.OfType<RuleCard>().Count();
         internal IReadOnlyDictionary<string, object> Values => _values;
-        internal int ScenarioCount => _scenarios.Count;
         internal string StatusMessage => StatusText.Text;
         internal Visibility ErrorButtonVisibility => ErrorDetailsButton.Visibility;
         internal string ErrorButtonText => (string)ErrorDetailsButton.Content;
@@ -832,7 +524,6 @@ namespace Forge
             RefreshSimulation();
         }
 
-        internal void ApplyJsonEditorForTesting() => ApplyJsonEditor();
         internal void RecomputeForTesting(string json) => Recompute(json);
     }
 }

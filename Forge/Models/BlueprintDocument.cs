@@ -11,7 +11,7 @@ namespace Forge.Models
     {
         public static readonly string[] RuleTypes =
         {
-            "BasePrice", "TieredPricing", "PercentageAdjustment", "FlatAdjustment", "PriceCap", "Rounding"
+            "BasePrice", "PercentageAdjustment", "FlatAdjustment", "Rounding"
         };
 
         public static readonly string[] RoundingModes =
@@ -116,13 +116,6 @@ namespace Forge.Models
                 ["Type"] = "BasePrice", ["Name"] = "Base Configuration Rate", ["Enabled"] = true,
                 ["DefaultPrice"] = 250.0, ["ContextKey"] = "base_price"
             },
-            "TieredPricing" => new JsonObject
-            {
-                ["Type"] = "TieredPricing", ["Name"] = "Volume License Tiers", ["Enabled"] = true,
-                ["QuantityKey"] = "quantity", ["Graduated"] = false,
-                ["Tiers"] = new JsonArray(
-                    Tier(10, 0.05), Tier(50, 0.10), Tier(100, 0.15), Tier(500, 0.25))
-            },
             "PercentageAdjustment" => new JsonObject
             {
                 ["Type"] = "PercentageAdjustment", ["Name"] = "Partner Discount", ["Enabled"] = true,
@@ -133,22 +126,12 @@ namespace Forge.Models
                 ["Type"] = "FlatAdjustment", ["Name"] = "Shipping Surcharge", ["Enabled"] = true,
                 ["Amount"] = 15.0, ["ConditionKey"] = "quantity < 10", ["Description"] = "Flat rate standard shipping fee for small orders"
             },
-            "PriceCap" => new JsonObject
-            {
-                ["Type"] = "PriceCap", ["Name"] = "Contract Price Floor Cap", ["Enabled"] = true,
-                ["MinPrice"] = 130.0, ["MaxPrice"] = null
-            },
             "Rounding" => new JsonObject
             {
                 ["Type"] = "Rounding", ["Name"] = "Charm Rounding", ["Enabled"] = true,
                 ["RoundingMode"] = "EndsIn99"
             },
             _ => throw new ArgumentException($"Unknown rule type '{type}'.", nameof(type))
-        };
-
-        private static JsonObject Tier(double minQty, double discount) => new()
-        {
-            ["MinQuantity"] = minQty, ["DiscountPercentage"] = discount
         };
 
         public static string? AsString(JsonNode? node) =>

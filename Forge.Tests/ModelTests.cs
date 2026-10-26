@@ -52,7 +52,7 @@ namespace Forge.Tests
             var events = new List<bool>();
             doc.Changed += s => events.Add(s);
 
-            var cap = doc.AddRule("PriceCap");
+            var flat = doc.AddRule("FlatAdjustment");
             var round = doc.AddRule("Rounding");
             Assert.Equal(3, doc.Rules.Count);
 
@@ -60,7 +60,7 @@ namespace Forge.Tests
             Assert.Same(round, doc.Rules[1]);
             Assert.False(doc.MoveRule(doc.Rules[0]!.AsObject(), -1)); // already first
 
-            doc.RemoveRule(cap);
+            doc.RemoveRule(flat);
             Assert.Equal(2, doc.Rules.Count);
 
             doc.Name = "Renamed";
@@ -72,10 +72,8 @@ namespace Forge.Tests
 
         [Theory]
         [InlineData("BasePrice")]
-        [InlineData("TieredPricing")]
         [InlineData("PercentageAdjustment")]
         [InlineData("FlatAdjustment")]
-        [InlineData("PriceCap")]
         [InlineData("Rounding")]
         public void NewRules_AreSchemaValidAndEngineAccepts(string type)
         {
@@ -99,105 +97,5 @@ namespace Forge.Tests
             Assert.Equal("gold", tier.Default);
             Assert.Equal(ContextKind.Bool, vars.Single(v => v.Key == "is_vip").Kind);
         }
-
-        [Fact]
-        public void Curve_IsMonotonicForVolumeDiscountsAndHitsTierEdges()
-        {
-            var p = Presets.Get("enterprise");
-            var curve = CurveCalculator.Compute(Engine, p.Json, p.Context);
-
-            Assert.NotNull(curve);
-            Assert.Equal("quantity", curve!.QuantityKey);
-            Assert.Contains(curve.Points, pt => pt.Quantity == 10);
-            Assert.Contains(curve.Points, pt => pt.Quantity == 9.99);
-
-            var tail = curve.Points.Where(pt => pt.Quantity >= 10).ToList();
-            for (int i = 1; i < tail.Count; i++) Assert.True(tail[i].Price <= tail[i - 1].Price + 1e-9);
-        }
-
-        [Fact]
-        public void Curve_IsNullWithoutTieredRule()
-        {
-            string json = BlueprintFileService.Serialize(new BlueprintBuilder("x").SetBasePrice("b", 10).Build());
-            Assert.Null(CurveCalculator.Compute(Engine, json, new Dictionary<string, object>()));
-        }
-    }
-
-    public class YamlTests
-    {
-        [Fact]
-        public void RoundTrip_PreservesTypesForEveryPreset()
-        {
-            foreach (var p in Presets.All)
-            {
-                string yaml = YamlConverter.JsonToYaml(p.Json);
-                string back = YamlConverter.YamlToJson(yaml);
-
-                Assert.True(JsonNode.DeepEquals(JsonNode.Parse(p.Json), JsonNode.Parse(back)),
-                    $"{p.Id} changed in round trip.\n{yaml}");
-                BlueprintFileService.Validate(back);
-            }
-        }
-
-        [Fact]
-        public void RoundTrip_KeepsAmbiguousStringsAsStrings()
-        {
-            string json = """{"a":"true","b":"123","c":"null","d":true,"e":123,"f":null,"g":1.5,"h":"1e3"}""";
-            string back = YamlConverter.YamlToJson(YamlConverter.JsonToYaml(json));
-            Assert.True(JsonNode.DeepEquals(JsonNode.Parse(json), JsonNode.Parse(back)), back);
-        }
-
-        [Fact]
-        public void HandwrittenYaml_ConvertsAndValidates()
-        {
-            const string yaml = """
-                Version: "1.0.0"
-                BlueprintName: Hand Written
-                Rules:
-                  - Type: BasePrice
-                    Name: Base
-                    DefaultPrice: 99.5
-                  - Type: PriceCap
-                    Name: Cap
-                    MinPrice: 10
-                    MaxPrice:
-                """;
-            string json = YamlConverter.YamlToJson(yaml);
-            BlueprintFileService.Validate(json);
-            var rules = (JsonNode.Parse(json)!["Rules"] as JsonArray)!;
-            Assert.Equal(99.5, (double)rules[0]!["DefaultPrice"]!);
-            Assert.Null(rules[1]!["MaxPrice"]);
-        }
-
-        [Fact]
-        public void BadYaml_Throws()
-        {
-            Assert.ThrowsAny<Exception>(() => YamlConverter.YamlToJson("a: [unclosed"));
-        }
-    }
-
-    public class ScenarioIoTests
-    {
-        [Fact]
-        public void RoundTrip_AndApiPayloadCompatibility()
-        {
-            var items = new List<ScenarioItem>
-            {
-                new() { Name = "A", Variables = new() { ["q"] = 5.0, ["vip"] = true, ["region"] = "EU" } }
-            };
-            var back = ScenarioIO.Parse(ScenarioIO.Serialize(items));
-            Assert.Equal("A", back[0].Name);
-            Assert.Equal(5.0, back[0].Variables["q"]);
-            Assert.Equal(true, back[0].Variables["vip"]);
-            Assert.Equal("EU", back[0].Variables["region"]);
-
-            // exact payload from the old API guide still parses
-            var api = ScenarioIO.Parse("""[{"scenario_name":"Standard Promotion Check","context":{"base_price":200,"quantity":15,"region":"EU","is_partner":true}}]""");
-            Assert.Equal(15.0, api[0].Variables["quantity"]);
-            Assert.Equal(true, api[0].Variables["is_partner"]);
-        }
-
-        [Fact]
-        public void NonArray_Throws() => Assert.Throws<JsonException>(() => ScenarioIO.Parse("{}"));
     }
 }

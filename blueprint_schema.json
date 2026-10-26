@@ -32,8 +32,6 @@
               "BasePrice",
               "PercentageAdjustment",
               "FlatAdjustment",
-              "PriceCap",
-              "TieredPricing",
               "Rounding"
             ]
           },
@@ -117,87 +115,6 @@
                 },
                 "Description": {
                   "type": "string"
-                }
-              }
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "Type": {
-                  "const": "PriceCap"
-                }
-              }
-            },
-            "then": {
-              "anyOf": [
-                {
-                  "required": [
-                    "MinPrice"
-                  ]
-                },
-                {
-                  "required": [
-                    "MaxPrice"
-                  ]
-                }
-              ],
-              "properties": {
-                "MinPrice": {
-                  "type": [
-                    "number",
-                    "null"
-                  ]
-                },
-                "MaxPrice": {
-                  "type": [
-                    "number",
-                    "null"
-                  ]
-                }
-              }
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "Type": {
-                  "const": "TieredPricing"
-                }
-              }
-            },
-            "then": {
-              "required": [
-                "QuantityKey",
-                "Tiers"
-              ],
-              "properties": {
-                "QuantityKey": {
-                  "type": "string"
-                },
-                "Graduated": {
-                  "type": "boolean"
-                },
-                "Tiers": {
-                  "type": "array",
-                  "items": {
-                    "type": "object",
-                    "required": [
-                      "MinQuantity",
-                      "DiscountPercentage"
-                    ],
-                    "properties": {
-                      "MinQuantity": {
-                        "type": "number",
-                        "minimum": 0
-                      },
-                      "DiscountPercentage": {
-                        "type": "number",
-                        "minimum": 0,
-                        "maximum": 1
-                      }
-                    }
-                  }
                 }
               }
             }

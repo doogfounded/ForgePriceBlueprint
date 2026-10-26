@@ -28,32 +28,6 @@ namespace Forge
             return this;
         }
 
-        public BlueprintBuilder AddPriceCap(string ruleName, double? minPrice = null, double? maxPrice = null, bool enabled = true)
-        {
-            _blueprint.Rules.Add(new PriceCapRuleDto(ruleName, minPrice, maxPrice, enabled));
-            return this;
-        }
-
-        public BlueprintBuilder AddVolumeTiers(string ruleName, string quantityKey, params (double minQty, double discountPct)[] tiers)
-        {
-            return AddVolumeTiers(ruleName, quantityKey, false, true, tiers);
-        }
-
-        public BlueprintBuilder AddVolumeTiers(string ruleName, string quantityKey, bool enabled, params (double minQty, double discountPct)[] tiers)
-        {
-            return AddVolumeTiers(ruleName, quantityKey, false, enabled, tiers);
-        }
-
-        public BlueprintBuilder AddVolumeTiers(string ruleName, string quantityKey, bool graduated, bool enabled, params (double minQty, double discountPct)[] tiers)
-        {
-            var rule = new TieredPricingRuleDto(ruleName, quantityKey, graduated, enabled);
-            foreach (var (minQty, discountPct) in tiers)
-            {
-                rule.Tiers.Add(new TierDto { MinQuantity = minQty, DiscountPercentage = discountPct });
-            }
-            _blueprint.Rules.Add(rule);
-            return this;
-        }
 
         public BlueprintBuilder AddRounding(string ruleName, string roundingMode, bool enabled = true)
         {

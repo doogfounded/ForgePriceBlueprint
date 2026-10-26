@@ -84,55 +84,6 @@ namespace Forge
                         errors.Add($"Rule #{index} (FlatAdjustment) '{ruleNameProp.GetString()}': missing required string property 'ConditionKey'.");
                     }
                 }
-                else if (type == "PriceCap")
-                {
-                    bool hasMin = rule.TryGetProperty("MinPrice", out var minProp) && minProp.ValueKind != JsonValueKind.Null;
-                    bool hasMax = rule.TryGetProperty("MaxPrice", out var maxProp) && maxProp.ValueKind != JsonValueKind.Null;
-                    if (!hasMin && !hasMax)
-                    {
-                        errors.Add($"Rule #{index} (PriceCap) '{ruleNameProp.GetString()}': must specify at least one of 'MinPrice' or 'MaxPrice'.");
-                    }
-                    if (hasMin && minProp.ValueKind != JsonValueKind.Number)
-                    {
-                        errors.Add($"Rule #{index} (PriceCap) '{ruleNameProp.GetString()}': 'MinPrice' must be a number.");
-                    }
-                    if (hasMax && maxProp.ValueKind != JsonValueKind.Number)
-                    {
-                        errors.Add($"Rule #{index} (PriceCap) '{ruleNameProp.GetString()}': 'MaxPrice' must be a number.");
-                    }
-                }
-                else if (type == "TieredPricing")
-                {
-                    if (!rule.TryGetProperty("QuantityKey", out var qkProp) || qkProp.ValueKind != JsonValueKind.String || string.IsNullOrWhiteSpace(qkProp.GetString()))
-                    {
-                        errors.Add($"Rule #{index} (TieredPricing) '{ruleNameProp.GetString()}': missing required string property 'QuantityKey'.");
-                    }
-                    if (!rule.TryGetProperty("Tiers", out var tiersProp) || tiersProp.ValueKind != JsonValueKind.Array || tiersProp.GetArrayLength() == 0)
-                    {
-                        errors.Add($"Rule #{index} (TieredPricing) '{ruleNameProp.GetString()}': missing required non-empty array property 'Tiers'.");
-                    }
-                    else
-                    {
-                        int tIdx = 0;
-                        foreach (var tier in tiersProp.EnumerateArray())
-                        {
-                            tIdx++;
-                            if (tier.ValueKind != JsonValueKind.Object)
-                            {
-                                errors.Add($"Rule #{index} (TieredPricing) '{ruleNameProp.GetString()}', Tier #{tIdx}: tier must be an object.");
-                                continue;
-                            }
-                            if (!tier.TryGetProperty("MinQuantity", out var mqProp) || mqProp.ValueKind != JsonValueKind.Number)
-                            {
-                                errors.Add($"Rule #{index} (TieredPricing) '{ruleNameProp.GetString()}', Tier #{tIdx}: missing required number property 'MinQuantity'.");
-                            }
-                            if (!tier.TryGetProperty("DiscountPercentage", out var dpProp) || dpProp.ValueKind != JsonValueKind.Number)
-                            {
-                                errors.Add($"Rule #{index} (TieredPricing) '{ruleNameProp.GetString()}', Tier #{tIdx}: missing required number property 'DiscountPercentage'.");
-                            }
-                        }
-                    }
-                }
                 else if (type == "Rounding")
                 {
                     if (!rule.TryGetProperty("RoundingMode", out var rmProp) || rmProp.ValueKind != JsonValueKind.String)

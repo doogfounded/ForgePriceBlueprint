@@ -7,8 +7,6 @@ namespace Forge
     [JsonDerivedType(typeof(BasePriceRuleDto))]
     [JsonDerivedType(typeof(PercentageAdjustmentRuleDto))]
     [JsonDerivedType(typeof(FlatAdjustmentRuleDto))]
-    [JsonDerivedType(typeof(PriceCapRuleDto))]
-    [JsonDerivedType(typeof(TieredPricingRuleDto))]
     [JsonDerivedType(typeof(RoundingRuleDto))]
     public abstract class PricingRuleDto
     {
@@ -67,33 +65,6 @@ namespace Forge
         }
     }
 
-    public class PriceCapRuleDto : PricingRuleDto
-    {
-        public double? MinPrice { get; set; }
-        public double? MaxPrice { get; set; }
-
-        public PriceCapRuleDto(string name, double? minPrice = null, double? maxPrice = null, bool enabled = true) 
-            : base("PriceCap", name, enabled)
-        {
-            MinPrice = minPrice;
-            MaxPrice = maxPrice;
-        }
-    }
-
-    public class TieredPricingRuleDto : PricingRuleDto
-    {
-        public string QuantityKey { get; set; }
-        public bool Graduated { get; set; } = false;
-        public List<TierDto> Tiers { get; set; } = new();
-
-        public TieredPricingRuleDto(string name, string quantityKey, bool graduated = false, bool enabled = true) 
-            : base("TieredPricing", name, enabled)
-        {
-            QuantityKey = quantityKey;
-            Graduated = graduated;
-        }
-    }
-
     public class RoundingRuleDto : PricingRuleDto
     {
         public string RoundingMode { get; set; }
@@ -103,12 +74,6 @@ namespace Forge
         {
             RoundingMode = roundingMode;
         }
-    }
-
-    public class TierDto
-    {
-        public double MinQuantity { get; set; }
-        public double DiscountPercentage { get; set; }
     }
 
     // C# representation of the full blueprint

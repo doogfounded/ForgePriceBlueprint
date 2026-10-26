@@ -3,39 +3,22 @@
   "BlueprintName": "Enterprise Custom Contract",
   "Rules": [
     {
-      "DefaultPrice": 250,
+      "DefaultPrice": 250.0,
       "ContextKey": "base_price",
       "Type": "BasePrice",
       "Name": "Base Configuration Rate",
       "Enabled": true
     },
     {
-      "QuantityKey": "quantity",
-      "Graduated": false,
-      "Tiers": [
-        {
-          "MinQuantity": 10,
-          "DiscountPercentage": 0.05
-        },
-        {
-          "MinQuantity": 50,
-          "DiscountPercentage": 0.1
-        },
-        {
-          "MinQuantity": 100,
-          "DiscountPercentage": 0.15
-        },
-        {
-          "MinQuantity": 500,
-          "DiscountPercentage": 0.25
-        }
-      ],
-      "Type": "TieredPricing",
-      "Name": "Volume License Tiers",
+      "Factor": 0.85,
+      "ConditionKey": "quantity >= 100",
+      "Description": "Volume Partner 15% discount for bulk orders",
+      "Type": "PercentageAdjustment",
+      "Name": "Volume Partner Discount",
       "Enabled": true
     },
     {
-      "Factor": 0.9,
+      "Factor": 0.90,
       "ConditionKey": "is_partner",
       "Description": "Partner Channel 10% discount",
       "Type": "PercentageAdjustment",
@@ -43,25 +26,19 @@
       "Enabled": true
     },
     {
-      "Amount": 15,
-      "ConditionKey": "quantity \u003C 10",
+      "Amount": 15.0,
+      "ConditionKey": "quantity < 10",
       "Description": "Flat rate standard shipping fee for small orders",
       "Type": "FlatAdjustment",
-      "Name": "Shipping \u0026 Handling Surcharge",
+      "Name": "Shipping & Handling Surcharge",
       "Enabled": true
     },
     {
       "Factor": 1.15,
-      "ConditionKey": "region != US \u0026\u0026 quantity \u003E= 10",
-      "Description": "International regional sales tax of 15% for orders of 10 or more units",
+      "ConditionKey": "region != US",
+      "Description": "International regional sales tax of 15%",
       "Type": "PercentageAdjustment",
       "Name": "International Tax Surcharge",
-      "Enabled": true
-    },
-    {
-      "MinPrice": 130,
-      "Type": "PriceCap",
-      "Name": "Contract Price Floor Cap",
       "Enabled": true
     }
   ]

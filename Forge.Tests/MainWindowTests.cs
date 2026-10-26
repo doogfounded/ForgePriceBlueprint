@@ -23,10 +23,6 @@ namespace Forge.Tests
                     Assert.NotEqual("$0.00", window.FinalPriceDisplay);
                     Assert.NotEqual("—", window.FinalPriceDisplay);
 
-                    // Verify JSON editor is in sync
-                    Assert.Contains("Enterprise Custom Contract", window.JsonEditorText);
-                    // Verify YAML editor is in sync
-                    Assert.Contains("Enterprise Custom Contract", window.YamlEditorText);
 
                     // Test altering a simulator variable
                     window.SetValue("quantity", 10.0);

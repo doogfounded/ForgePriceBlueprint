@@ -8,13 +8,8 @@ set -euo pipefail
 echo "== ForgePriceBlueprint: end-to-end runner =="
 
 if ! command -v dotnet >/dev/null 2>&1; then
-  echo "Error: dotnet SDK not found in PATH. Please install .NET SDK to run the C# generator."
+  echo "Error: dotnet SDK not found in PATH. Please install .NET SDK."
   exit 1
-fi
-
-if ! command -v g++ >/dev/null 2>&1; then
-  echo "Warning: g++ not found in PATH. You can build the PriceBlueprint project with Visual Studio on Windows instead."
-  echo "Attempting to continue, but build will fail without a C++ compiler."
 fi
 
 # 1) Run tests
@@ -22,10 +17,8 @@ echo "--> Running .NET test suite..."
 dotnet test Forge.Tests --nologo -v q
 
 # 2) Build the C++ runtime
-echo "--> Building C++ runtime (PriceBlueprint)..."
-# If g++ is available, use it; otherwise inform the user
+echo "--> Building C++ runtime library (PriceBlueprint)..."
 if command -v g++ >/dev/null 2>&1; then
-  # Auto-detect vcpkg include directory for nlohmann/json headers
   VCPKG_INCLUDE="D:/Desktop/git-stuff/vcpkg/installed/x64-windows/include"
   if [ ! -d "$VCPKG_INCLUDE" ]; then
     VCPKG_INCLUDE="/mnt/d/Desktop/git-stuff/vcpkg/installed/x64-windows/include"
@@ -37,18 +30,9 @@ if command -v g++ >/dev/null 2>&1; then
     VCPKG_FLAGS="-I$VCPKG_INCLUDE"
   fi
 
-  g++ -std=c++17 PriceBlueprint/src/main.cpp -IPriceBlueprint/include $VCPKG_FLAGS -o price_blueprint
+  g++ -shared -fPIC -static -static-libgcc -static-libstdc++ -std=c++17 PriceBlueprint/src/library.cpp -IPriceBlueprint/include $VCPKG_FLAGS -o price_blueprint.dll
 else
-  echo "Skipping local g++ build. If you're on Windows, open ForgePriceBlueprint.slnx in Visual Studio and build the PriceBlueprint project."
-fi
-
-# 3) Run the runtime (no args)
-echo "--> Running price_blueprint (no arguments)"
-if [ -x ./price_blueprint ]; then
-  ./price_blueprint
-else
-  echo "Executable ./price_blueprint not found or not executable. Build step may have failed."
-  exit 1
+  echo "Skipping local g++ build. If you're on Windows, build with Visual Studio."
 fi
 
 echo "== Done =="

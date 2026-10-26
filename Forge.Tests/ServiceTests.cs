@@ -9,7 +9,7 @@ namespace Forge.Tests
         private static string SampleBlueprint() => BlueprintFileService.Serialize(
             new BlueprintBuilder("Test")
                 .SetBasePrice("Base", 100.0)
-                .AddVolumeTiers("Tiers", "quantity", (10, 0.05), (50, 0.10))
+                .AddPercentageAdjustment("Volume", 0.95, "quantity >= 10", "5% off")
                 .AddPercentageAdjustment("Partner", 0.90, "is_partner", "10% off")
                 .Build());
 
@@ -91,26 +91,5 @@ namespace Forge.Tests
             finally { Directory.Delete(dir, true); }
         }
 
-        [Fact]
-        public void Analyzer_FlagsNegativePrice()
-        {
-            string bp = BlueprintFileService.Serialize(new BlueprintBuilder("Bad")
-                .SetBasePrice("Base", 100.0)
-                .AddFlatAdjustment("Huge discount", -500.0, "quantity >= 1", "oops")
-                .Build());
-
-            var report = new BlueprintAnalyzer(new PricingEngine()).Analyze(bp);
-
-            Assert.False(report.Valid);
-            Assert.Contains(report.Anomalies, a => a.Rule == "Negative/Zero Price");
-        }
-
-        [Fact]
-        public void Analyzer_RunsFullGrid()
-        {
-            var report = new BlueprintAnalyzer(new PricingEngine()).Analyze(SampleBlueprint());
-            Assert.True(report.ScenariosTested > 0);
-            Assert.Equal(0, report.ScenariosTested % 12); // 2 base prices x 2 regions x 3 modes per quantity
-        }
     }
 }

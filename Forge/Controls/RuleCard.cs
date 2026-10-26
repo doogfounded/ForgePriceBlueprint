@@ -21,7 +21,6 @@ namespace Forge.Controls
         private readonly JsonObject _rule;
         private readonly StackPanel _body = new() { Margin = new Thickness(0, 6, 0, 0) };
         private readonly TextBlock _title = new() { FontWeight = FontWeights.SemiBold, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
-        private StackPanel? _tiersPanel;
 
         public event Action? Edited;
         public event Action<RuleCard, int>? MoveRequested;
@@ -157,11 +156,6 @@ namespace Forge.Controls
                     Row("Description", TextBoxFor(_rule, "Description"));
                     break;
 
-                case "PriceCap":
-                    Row("Min price", NumberBoxFor(_rule, "MinPrice", true), "Leave empty for no floor.");
-                    Row("Max price", NumberBoxFor(_rule, "MaxPrice", true), "Leave empty for no ceiling.");
-                    break;
-
                 case "Rounding":
                     var combo = new ComboBox { ItemsSource = BlueprintDocument.RoundingModes, Padding = new Thickness(4, 3, 4, 3) };
                     combo.SelectedItem = BlueprintDocument.AsString(_rule["RoundingMode"]);
@@ -170,21 +164,6 @@ namespace Forge.Controls
                         if (combo.SelectedItem is string s) { _rule["RoundingMode"] = s; Edited?.Invoke(); }
                     };
                     Row("Mode", combo);
-                    break;
-
-                case "TieredPricing":
-                    Row("Quantity key", TextBoxFor(_rule, "QuantityKey"), "Simulator input holding the quantity.");
-                    var graduated = new CheckBox
-                    {
-                        Content = "Graduated (blend discounts across tiers)",
-                        IsChecked = BlueprintDocument.AsBool(_rule["Graduated"], false),
-                        VerticalAlignment = VerticalAlignment.Center
-                    };
-                    graduated.Click += (_, _) => { _rule["Graduated"] = graduated.IsChecked == true; Edited?.Invoke(); };
-                    Row("", graduated);
-                    _tiersPanel = new StackPanel { Margin = new Thickness(0, 6, 0, 0) };
-                    _body.Children.Add(_tiersPanel);
-                    BuildTiers();
                     break;
             }
         }
@@ -246,88 +225,6 @@ namespace Forge.Controls
             box.ToolTip = valid ? box.ToolTip : "Enter a number (use . for decimals).";
         }
 
-        // ---------- tiers ----------
 
-        private JsonArray Tiers
-        {
-            get
-            {
-                if (_rule["Tiers"] is not JsonArray tiers)
-                {
-                    tiers = new JsonArray();
-                    _rule["Tiers"] = tiers;
-                }
-                return tiers;
-            }
-        }
-
-        private void BuildTiers()
-        {
-            if (_tiersPanel == null) return;
-            _tiersPanel.Children.Clear();
-
-            var header = new Grid();
-            header.ColumnDefinitions.Add(new ColumnDefinition());
-            header.ColumnDefinitions.Add(new ColumnDefinition());
-            header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
-            var a = new TextBlock { Text = "Min quantity", Foreground = Theme.Muted, FontSize = 11 };
-            var b = new TextBlock { Text = "Discount (0.05 = 5%)", Foreground = Theme.Muted, FontSize = 11, Margin = new Thickness(4, 0, 0, 0) };
-            Grid.SetColumn(b, 1);
-            header.Children.Add(a);
-            header.Children.Add(b);
-            _tiersPanel.Children.Add(header);
-
-            foreach (var tier in Tiers.OfType<JsonObject>().ToList())
-            {
-                var row = new Grid { Margin = new Thickness(0, 3, 0, 0) };
-                row.ColumnDefinitions.Add(new ColumnDefinition());
-                row.ColumnDefinitions.Add(new ColumnDefinition());
-                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(28) });
-
-                var min = NumberBoxFor(tier, "MinQuantity", false);
-                // the engine assumes ascending order, so tidy up when the user leaves the box
-                min.LostKeyboardFocus += (_, _) => SortTiers();
-                var disc = NumberBoxFor(tier, "DiscountPercentage", false);
-                disc.Margin = new Thickness(4, 0, 0, 0);
-                var del = IconButton("✕", "Remove tier");
-                del.Foreground = Theme.Error;
-                del.Click += (_, _) => { Tiers.Remove(tier); BuildTiers(); Edited?.Invoke(); };
-
-                Grid.SetColumn(disc, 1);
-                Grid.SetColumn(del, 2);
-                row.Children.Add(min);
-                row.Children.Add(disc);
-                row.Children.Add(del);
-                _tiersPanel.Children.Add(row);
-            }
-
-            var add = new Button { Content = "+ Add tier", Margin = new Thickness(0, 6, 0, 0), HorizontalAlignment = HorizontalAlignment.Left, Padding = new Thickness(10, 3, 10, 3) };
-            add.Click += (_, _) =>
-            {
-                double last = Tiers.OfType<JsonObject>().Select(t => BlueprintDocument.AsNumber(t["MinQuantity"]) ?? 0).DefaultIfEmpty(0).Max();
-                Tiers.Add(new JsonObject { ["MinQuantity"] = last > 0 ? last * 2 : 10.0, ["DiscountPercentage"] = 0.05 });
-                SortTiers(rebuildAlways: true);
-            };
-            _tiersPanel.Children.Add(add);
-        }
-
-        private void SortTiers(bool rebuildAlways = false)
-        {
-            var current = Tiers.OfType<JsonObject>().ToList();
-            var sorted = current.OrderBy(t => BlueprintDocument.AsNumber(t["MinQuantity"]) ?? 0).ToList();
-            bool changed = !current.SequenceEqual(sorted);
-
-            if (changed)
-            {
-                var clones = sorted.Select(t => t.DeepClone()).ToList();
-                Tiers.Clear();
-                foreach (var c in clones) Tiers.Add(c);
-            }
-            if (changed || rebuildAlways)
-            {
-                BuildTiers();
-                Edited?.Invoke();
-            }
-        }
     }
 }
