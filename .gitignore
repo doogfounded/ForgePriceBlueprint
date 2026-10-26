@@ -399,3 +399,22 @@ FodyWeavers.xsd
 
 # JetBrains Rider
 *.sln.iml
+
+# Build distribution and publish outputs
+dist/
+
+# Compiled native binaries and libraries
+price_blueprint.exe
+price_blueprint.dll
+price_blueprint.so
+price_blueprint
+*.exe
+*.dll
+*.so
+*.dylib
+*.pdb
+
+# Test and run artifacts
+TestResults/
+[Tt]est[Rr]esults/
+logs/
