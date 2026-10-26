@@ -1,6 +1,6 @@
 using System.Windows.Media;
 
-namespace Forge.Controls
+namespace MyPriceCalc.Controls
 {
     /// <summary>Shared frozen brushes so XAML and code-built controls use one palette.</summary>
     public static class Theme

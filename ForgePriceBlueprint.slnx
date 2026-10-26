@@ -1,5 +1,4 @@
 <Solution>
-  <Project Path="Forge/Forge.csproj" />
-  <Project Path="Forge.Tests/Forge.Tests.csproj" />
-  <Project Path="PriceBlueprint/PriceBlueprint.vcxproj" />
+  <Project Path="MyPriceCalc/MyPriceCalc.csproj" />
+  <Project Path="MyPriceCalc.Tests/MyPriceCalc.Tests.csproj" />
 </Solution>
